@@ -1,7 +1,7 @@
 import { buildWhatsAppUrl, normalizePhone, safeCsvCell, toCsv } from './contact-utils.js';
 import { createXlsx } from './workbook.js';
 import { parseXlsxRows } from './spreadsheet-import.js';
-import { mergeLeadRecords, summarizeCapture, captureResumeLabel, isResumableCheckpoint } from './capture-utils.js';
+import { mergeLeadRecords, captureLeadAliases, summarizeCapture, captureResumeLabel, isResumableCheckpoint } from './capture-utils.js';
 import {
   CRM_STAGES, DEFAULT_MESSAGE_TEMPLATE, DEFAULT_WEIGHTS, classifyEmail,
   isDoNotContact, normalizeCompanyName, normalizeLeadRecord, qualityScore, renderTemplate, identityKeyForLead
@@ -10,10 +10,12 @@ import { loadAppState, saveAppState, createBackup, validateBackup, loadCaptureCh
 import { normalizeSupabaseProjectUrl, parsePostgrestTotal, buildRangeHeader, isGoogleMapsUrl } from './cloud-utils.js';
 import { enrichmentPermissionOrigins } from './permission-utils.js';
 import { classifyQueueOutcome, summarizeQueueOutcomes } from './queue-utils.js';
+import { MAX_DELETION_TOMBSTONES, normalizeDeletionTombstone, mergeDeletionTombstones, applyDeletionTombstones, pruneSupersededTombstones } from './sync-utils.js';
 
 const $ = (selector) => document.querySelector(selector);
 const PAGE_SIZE = 50;
 const MAX_LEADS = 10000;
+const MAX_CLOUD_RECORDS = MAX_LEADS + MAX_DELETION_TOMBSTONES;
 const EXPORT_FIELDS = [
   ['identityKey','Chave de identidade'],
   ['name','Empresa'],['category','Categoria'],['phone','Telefone'],['phones','Telefones'],
@@ -93,7 +95,10 @@ function setProgress(done, total, label) {
   $('#progressLabel').textContent = label || 'Processando';
 }
 async function persist() {
-  state.leads = leads.slice(0, MAX_LEADS);
+  state.deletedLeadKeys = mergeDeletionTombstones(state.deletedLeadKeys || []);
+  leads = applyDeletionTombstones(leads.slice(0, MAX_LEADS), state.deletedLeadKeys);
+  state.deletedLeadKeys = pruneSupersededTombstones(leads, state.deletedLeadKeys);
+  state.leads = leads;
   state = await saveAppState(state);
   leads = state.leads;
   render();
@@ -102,7 +107,12 @@ async function load() {
   state = await loadAppState();
   lastCaptureCheckpoint = await loadCaptureCheckpoint().catch(() => null);
   state.settings = { ...state.settings, weights: { ...DEFAULT_WEIGHTS, ...(state.settings?.weights || {}) }, messageTemplate: state.settings?.messageTemplate || DEFAULT_MESSAGE_TEMPLATE };
-  state.leads = mergeLeadRecords([], (state.leads || []).map((lead) => normalizeCurrentLead(lead)), MAX_LEADS);
+  state.deletedLeadKeys = mergeDeletionTombstones(state.deletedLeadKeys || []);
+  state.leads = applyDeletionTombstones(
+    mergeLeadRecords([], (state.leads || []).map((lead) => normalizeCurrentLead(lead)), MAX_LEADS),
+    state.deletedLeadKeys
+  );
+  state.deletedLeadKeys = pruneSupersededTombstones(state.leads, state.deletedLeadKeys);
   state.queue = (state.queue || []).map((item) => item.status === 'running' ? { ...item, status:'interrupted', message:'Execução interrompida; pode ser retomada.' } : item);
   leads = state.leads;
   renderSettings();
@@ -120,7 +130,12 @@ function switchView(view) {
 }
 function mergeIncoming(items) {
   if (!Array.isArray(items) || !items.length) return;
-  leads = mergeLeadRecords(leads, items.map(normalizeCurrentLead), MAX_LEADS);
+  const tombstones = mergeDeletionTombstones(state.deletedLeadKeys || []);
+  leads = applyDeletionTombstones(
+    mergeLeadRecords(leads, items.map(normalizeCurrentLead), MAX_LEADS),
+    tombstones
+  );
+  state.deletedLeadKeys = pruneSupersededTombstones(leads, tombstones);
   state.leads = leads;
 }
 
@@ -195,7 +210,8 @@ function leadCard(lead) {
     '<button data-action="followup" data-id="' + escapeHtml(lead.id) + '">Agendar retorno</button>' +
     '<button data-action="tags" data-id="' + escapeHtml(lead.id) + '">Etiquetas</button>' +
     '<button data-action="owner-edit" data-id="' + escapeHtml(lead.id) + '">Responsável</button>' +
-    '<button data-action="dnc" class="dnc" data-id="' + escapeHtml(lead.id) + '">' + (isDnc ? 'Remover bloqueio' : 'Não contatar') + '</button></div></article>';
+    '<button data-action="dnc" class="dnc" data-id="' + escapeHtml(lead.id) + '">' + (isDnc ? 'Remover bloqueio' : 'Não contatar') + '</button>' +
+    '<button data-action="delete" class="delete" data-id="' + escapeHtml(lead.id) + '" aria-label="Excluir lead">Excluir</button></div></article>';
 }
 function getFilteredLeads() {
   const query = ($('#searchInput')?.value || '').trim().toLowerCase();
@@ -330,6 +346,27 @@ async function handleLeadAction(action,id) {
   }
   const lead = leads.find((item) => item.id === id);
   if (!lead) return;
+  if (action === 'delete') {
+    if (!confirm('Excluir "' + lead.name + '" da base? A exclusão será propagada para os outros dispositivos na próxima sincronização Supabase.')) return;
+    const identityKey = lead.identityKey || identityKeyForLead(lead);
+    if (!identityKey) { setStatus('Não foi possível gerar uma identidade segura para este lead.','error'); return; }
+    const tombstone = normalizeDeletionTombstone({
+      id:lead.id,
+      identityKey,
+      aliases:captureLeadAliases(lead),
+      deletedAt:new Date().toISOString()
+    });
+    state.deletedLeadKeys = mergeDeletionTombstones(state.deletedLeadKeys || [], [tombstone]);
+    leads = leads.filter((item) => item.id !== id);
+    state.leads = leads;
+    state.activities = [...(state.activities || []), {
+      id:makeId(), type:'lead_deleted', leadId:id, identityKey, note:'Lead excluído e marcado para sincronização.',
+      createdAt:new Date().toISOString()
+    }].slice(-5000);
+    await persist();
+    setStatus('Lead excluído. A exclusão será sincronizada na próxima sincronização Supabase.','success');
+    return;
+  }
   if (action === 'activity') {
     const note = prompt('Registre a interação (ligação, reunião, mensagem ou observação):');
     if (note?.trim()) await updateLead(id,(item) => addActivity(item,'interaction',note));
@@ -1022,13 +1059,13 @@ async function syncSupabase() {
     const userId=session.user?.id||decodeJwtPayload(token).sub;
     if (!userId) throw new Error('Não foi possível identificar o usuário autenticado no Supabase.');
     const headers=supabaseHeaders(anon,token);
-    setStatus('Lendo registros da nuvem…');
+    setStatus('Lendo registros e exclusões da nuvem…');
 
     const remote=[];
     const remotePageSize=1000;
     let remoteTotal=null;
-    for (let offset=0;offset<=MAX_LEADS;offset+=remotePageSize) {
-      const response=await fetch(url+'/rest/v1/prospectra_leads?select=id,identity_key,payload,updated_at',{
+    for (let offset=0;offset<=MAX_CLOUD_RECORDS;offset+=remotePageSize) {
+      const response=await fetch(url+'/rest/v1/prospectra_leads?select=id,identity_key,payload,updated_at,deleted_at',{
         headers:{
           ...headers,
           'Range-Unit':'items',
@@ -1036,28 +1073,43 @@ async function syncSupabase() {
           'Prefer':'count=exact'
         }
       });
-      if (!response.ok) throw new Error('Falha ao ler a tabela. Verifique o SQL e as políticas RLS.');
+      if (!response.ok) {
+        const detail=await response.text().catch(()=>'');
+        if (/deleted_at/i.test(detail)) {
+          throw new Error('A tabela Supabase ainda não possui a coluna deleted_at. Execute novamente docs/supabase/schema.sql para aplicar a migração.');
+        }
+        throw new Error('Falha ao ler a tabela. Verifique o SQL e as políticas RLS. '+detail.slice(0,160));
+      }
       const total=parsePostgrestTotal(response.headers.get('content-range'));
       if (total!==null) {
         remoteTotal=total;
-        if (total>MAX_LEADS) {
-          throw new Error('A nuvem contém '+total.toLocaleString('pt-BR')+' leads, acima do limite local de '+MAX_LEADS.toLocaleString('pt-BR')+'. A sincronização foi cancelada sem importar uma base incompleta.');
+        if (total>MAX_CLOUD_RECORDS) {
+          throw new Error('A nuvem contém '+total.toLocaleString('pt-BR')+' registros, acima do limite combinado de '+MAX_CLOUD_RECORDS.toLocaleString('pt-BR')+' leads e exclusões. A sincronização foi cancelada sem importar dados parciais.');
         }
       }
       const batch=await response.json();
-      if (!Array.isArray(batch)) throw new Error('Resposta inválida ao consultar os leads na nuvem.');
-      if (offset>=MAX_LEADS && batch.length) {
-        throw new Error('A nuvem contém mais de '+MAX_LEADS.toLocaleString('pt-BR')+' leads. A sincronização foi cancelada para não apresentar dados parciais como completos.');
+      if (!Array.isArray(batch)) throw new Error('Resposta inválida ao consultar os registros na nuvem.');
+      if (offset>=MAX_CLOUD_RECORDS && batch.length) {
+        throw new Error('A nuvem ultrapassa o limite de '+MAX_CLOUD_RECORDS.toLocaleString('pt-BR')+' registros. A sincronização foi cancelada.');
       }
       remote.push(...batch);
-      setProgress(remote.length,remoteTotal??MAX_LEADS,'Lendo registros remotos: '+remote.length.toLocaleString('pt-BR'));
+      setProgress(remote.length,remoteTotal??MAX_CLOUD_RECORDS,'Lendo registros remotos: '+remote.length.toLocaleString('pt-BR'));
       if (batch.length<remotePageSize || (remoteTotal!==null && remote.length>=remoteTotal)) break;
     }
     if (remoteTotal!==null && remote.length!==remoteTotal) {
       throw new Error('Leitura incompleta da nuvem: '+remote.length+' de '+remoteTotal+' registros recebidos.');
     }
 
-    const remoteLeads=remote.map((row)=>normalizeCurrentLead({
+    const remoteTombstones=remote
+      .filter((row)=>row.deleted_at)
+      .map((row)=>normalizeDeletionTombstone({
+        id:row.id,
+        identityKey:row.identity_key||row.payload?.identityKey,
+        aliases:row.payload?.aliases,
+        deletedAt:row.deleted_at
+      }))
+      .filter(Boolean);
+    const remoteLeads=remote.filter((row)=>!row.deleted_at).map((row)=>normalizeCurrentLead({
       ...(row.payload||{}),
       id:row.id,
       identityKey:row.identity_key||row.payload?.identityKey,
@@ -1067,17 +1119,33 @@ async function syncSupabase() {
     if (merged.length>MAX_LEADS) {
       throw new Error('A mesclagem ultrapassaria o limite local de '+MAX_LEADS.toLocaleString('pt-BR')+' leads. Exporte ou organize a base antes de sincronizar.');
     }
-    leads=merged;
+    const tombstones=mergeDeletionTombstones(state.deletedLeadKeys||[],remoteTombstones);
+    leads=applyDeletionTombstones(merged,tombstones);
     state.leads=leads;
+    state.deletedLeadKeys=pruneSupersededTombstones(leads,tombstones);
     await persist();
 
-    const body=leads.map((lead)=>({
-      id:lead.id,
-      identity_key:lead.identityKey||identityKeyForLead(lead),
-      user_id:userId,
-      payload:lead,
-      updated_at:lead.updatedAt||new Date().toISOString()
-    }));
+    const body=[
+      ...leads.map((lead)=>({
+        id:lead.id,
+        identity_key:lead.identityKey||identityKeyForLead(lead),
+        user_id:userId,
+        payload:lead,
+        updated_at:lead.updatedAt||new Date().toISOString(),
+        deleted_at:null
+      })),
+      ...state.deletedLeadKeys.map((item)=>({
+        id:item.id||('deleted-'+item.identityKey.slice(0,100)),
+        identity_key:item.identityKey,
+        user_id:userId,
+        payload:{deleted:true,identityKey:item.identityKey,aliases:item.aliases,deletedAt:item.deletedAt},
+        updated_at:item.deletedAt,
+        deleted_at:item.deletedAt
+      }))
+    ];
+    if (body.length>MAX_CLOUD_RECORDS) {
+      throw new Error('A base excede o limite de '+MAX_CLOUD_RECORDS.toLocaleString('pt-BR')+' registros sincronizáveis.');
+    }
     for (let offset=0;offset<body.length;offset+=200) {
       const batch=body.slice(offset,offset+200);
       const response=await fetch(url+'/rest/v1/prospectra_leads?on_conflict=user_id,identity_key',{
@@ -1085,14 +1153,17 @@ async function syncSupabase() {
         headers:{...headers,Prefer:'resolution=merge-duplicates,return=minimal'},
         body:JSON.stringify(batch)
       });
-      if (!response.ok) throw new Error('Falha ao enviar lote '+(Math.floor(offset/200)+1)+'. Verifique a tabela e as políticas RLS.');
-      setProgress(Math.min(offset+batch.length,body.length),body.length,'Sincronizando nuvem');
+      if (!response.ok) {
+        const detail=await response.text().catch(()=>'');
+        throw new Error('Falha ao enviar lote '+(Math.floor(offset/200)+1)+'. '+detail.slice(0,180)+' Verifique o schema e as políticas RLS.');
+      }
+      setProgress(Math.min(offset+batch.length,body.length),body.length,'Sincronizando leads e exclusões');
     }
 
     state.settings.supabaseLastSync=new Date().toISOString();
     await persist();
-    $('#cloudStatus').textContent='Última sincronização: '+new Date(state.settings.supabaseLastSync).toLocaleString('pt-BR')+'. '+leads.length+' leads.';
-    setStatus('Sincronização concluída. A leitura remota foi completa e a regra de conflito mescla registros; exclusões não são propagadas.','success');
+    $('#cloudStatus').textContent='Última sincronização: '+new Date(state.settings.supabaseLastSync).toLocaleString('pt-BR')+'. '+leads.length+' leads ativos · '+state.deletedLeadKeys.length+' exclusões.';
+    setStatus('Sincronização concluída: '+leads.length+' lead(s) ativo(s) e '+state.deletedLeadKeys.length+' exclusão(ões) propagada(s).','success');
   } catch(error) {
     setStatus('Supabase: '+(error?.message||'falha ao sincronizar'),'error');
   }

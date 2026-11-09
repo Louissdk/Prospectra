@@ -147,7 +147,7 @@ a{color:inherit}
 .lead-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .lead-actions button,.lead-actions a{display:inline-flex;align-items:center;min-height:26px;padding:0 7px;border:1px solid var(--line);border-radius:7px;background:rgba(1,141,62,.035);color:#2D5238;text-decoration:none;font-size:7px;font-weight:700}
 .lead-actions button:hover,.lead-actions a:hover{border-color:rgba(1,141,62,.38);color:var(--blue)}
-.lead-actions .dnc{color:#E71506;border-color:rgba(231,21,6,.18)}
+.lead-actions .dnc,.lead-actions .delete{color:#E71506;border-color:rgba(231,21,6,.18)}
 .export-inline{display:flex;gap:7px;margin-top:10px}
 .empty-state{display:flex;min-height:150px;flex-direction:column;align-items:center;justify-content:center;gap:7px;border:1px dashed rgba(1,141,62,.20);border-radius:12px;text-align:center;padding:18px;color:var(--muted)}
 .empty-state b{font-size:10px;color:#173B27}
@@ -261,7 +261,7 @@ body{background:radial-gradient(ellipse at 92% -8%,rgba(1,141,62,.08),transparen
 .progress-bar.indeterminate{background:linear-gradient(90deg,transparent,#018D3E,transparent);background-size:200% 100%}
 .progress-head strong,.metric-card strong,.lead-title h3,.empty-state b,.followup-item strong{color:#173B27}
 .status-message.success,.metric-accent strong,.score-pill{color:#018D3E}
-.status-message.warning,.status-message.error,.tag-pill.closed,.lead-actions .dnc{color:#E71506}
+.status-message.warning,.status-message.error,.tag-pill.closed,.lead-actions .dnc,.lead-actions .delete{color:#E71506}
 .metric-accent,.score-pill{background:rgba(1,141,62,.065);border-color:rgba(1,141,62,.19)}
 .stage-fill,.coverage-fill{background:#018D3E}
 .followup-date{color:#B61B12}
@@ -269,7 +269,7 @@ body{background:radial-gradient(ellipse at 92% -8%,rgba(1,141,62,.08),transparen
 .coverage-row a:hover,.lead-info a:hover{color:#018D3E}
 .tag-pill{background:rgba(1,141,62,.035);border-color:rgba(1,141,62,.14);color:#536B56}
 .tag-pill.stage{background:rgba(1,141,62,.08);border-color:rgba(1,141,62,.20);color:#075E2B}
-.tag-pill.closed,.lead-actions .dnc{background:rgba(231,21,6,.055);border-color:rgba(231,21,6,.2)}
+.tag-pill.closed,.lead-actions .dnc,.lead-actions .delete{background:rgba(231,21,6,.055);border-color:rgba(231,21,6,.2)}
 .lead-actions button,.lead-actions a{background:#F8F2E3;border-color:rgba(1,141,62,.17);color:#365B40}
 .lead-actions button:hover,.lead-actions a:hover{border-color:#018D3E;color:#018D3E;background:rgba(1,141,62,.06)}
 .empty-state{border-color:rgba(1,141,62,.22);color:#536B56}

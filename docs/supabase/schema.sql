@@ -7,12 +7,16 @@ create table if not exists public.prospectra_leads (
   user_id uuid not null references auth.users(id) on delete cascade,
   payload jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now(),
+  deleted_at timestamptz,
   primary key (user_id, id)
 );
 
 -- Migração segura para projetos que já tenham a tabela da versão inicial do conector.
 alter table public.prospectra_leads
   add column if not exists identity_key text;
+
+alter table public.prospectra_leads
+  add column if not exists deleted_at timestamptz;
 
 update public.prospectra_leads
 set identity_key = coalesce(nullif(payload->>'identityKey',''), id)
@@ -23,6 +27,9 @@ alter table public.prospectra_leads
 
 create index if not exists prospectra_leads_user_updated_idx
   on public.prospectra_leads (user_id, updated_at desc);
+
+create index if not exists prospectra_leads_user_deleted_idx
+  on public.prospectra_leads (user_id, deleted_at) where deleted_at is not null;
 
 create unique index if not exists prospectra_leads_user_identity_uidx
   on public.prospectra_leads (user_id, identity_key);
