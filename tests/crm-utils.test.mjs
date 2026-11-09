@@ -107,3 +107,21 @@ test('creates a stable commercial identity key', () => {
   assert.equal(identityKeyForLead({placeId:'ChIJ123'}),'place:ChIJ123');
   assert.match(identityKeyForLead({name:'Empresa X',phone:'(11) 99999-0000'}),/^name-phone:/);
 });
+
+test('parses addresses when the neighborhood appears without a street number', () => {
+  const parsed = parseAddress('Av. Paulista, Bela Vista, São Paulo - SP, 01310-100');
+  assert.equal(parsed.street,'Av. Paulista');
+  assert.equal(parsed.neighborhood,'Bela Vista');
+  assert.equal(parsed.city,'São Paulo');
+  assert.equal(parsed.state,'SP');
+  assert.equal(parsed.postalCode,'01310-100');
+});
+test('separates number, complement, neighborhood and city in common Brazilian addresses', () => {
+  const parsed = parseAddress('Rua das Flores, 123 - Sala 4, Centro, Guarulhos - SP');
+  assert.equal(parsed.street,'Rua das Flores');
+  assert.equal(parsed.number,'123');
+  assert.equal(parsed.complement,'Sala 4');
+  assert.equal(parsed.neighborhood,'Centro');
+  assert.equal(parsed.city,'Guarulhos');
+  assert.equal(parsed.state,'SP');
+});

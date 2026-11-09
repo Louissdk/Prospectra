@@ -100,25 +100,225 @@ export function parseAddress(address = '') {
   const raw = cleanText(address);
   const result = { raw, street: '', number: '', complement: '', neighborhood: '', city: '', state: '', postalCode: '', confidence: 'low' };
   if (!raw) return result;
-  const cep = raw.match(/\b\d{5}-?\d{3}\b/);
-  if (cep) result.postalCode = cep[0].replace(/(\d{5})(\d{3})/, '$1-$2');
-  const state = raw.match(/(?:[,/-]\s*|\s)(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b/i);
-  if (state) result.state = state[1].toUpperCase();
-  const pieces = raw.split(/\s*[,;]\s*/).filter(Boolean);
-  if (pieces.length) {
-    const first = pieces[0].match(/^(.+?)(?:\s+(?:n[ºo.]?\s*)?(\d+[A-Za-z]?(?:-\d+)?))?$/i);
-    if (first) { result.street = cleanText(first[1]); result.number = first[2] || ''; }
-    else result.street = pieces[0];
+
+  const postal = raw.match(/\b\d{5}-?\d{3}\b/);
+  if (postal) result.postalCode = postal[0].replace(/(\d{5})(\d{3})/, '$1-$2');
+  const pieces = raw.replace(/\b\d{5}-?\d{3}\b/g, '').split(/\s*[,;]\s*/).map(cleanText).filter(Boolean);
+  if (!pieces.length) return result;
+
+  const stateCodes = 'AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO';
+  const stateSuffix = new RegExp('(?:^|\\s*[-/]\\s*)(' + stateCodes + ')export function qualityScore(lead = {}, weights = {}) {
+  const w = { ...DEFAULT_WEIGHTS, ...weights };
+  const present = {
+    phone: (lead.phones?.length || lead.phone ? 1 : 0),
+    website: lead.website ? 1 : 0,
+    email: (lead.emails?.length || 0) ? 1 : 0,
+    rating: lead.rating && Number(lead.rating) > 0 ? 1 : 0,
+    reviews: Number(lead.reviewCount) > 0 ? 1 : 0,
+    address: lead.address ? 1 : 0,
+    social: Object.values(lead.socialProfiles || {}).some(Boolean) ? 1 : 0,
+    cnpj: lead.cnpj ? 1 : 0,
+    hours: lead.openingHours ? 1 : 0,
+    reachable: lead.websiteStatus === 'online' ? 1 : 0
+  };
+  const total = Object.values(w).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0) || 1;
+  const score = Object.entries(present).reduce((sum, [key, exists]) => sum + (exists ? Math.max(0, Number(w[key]) || 0) : 0), 0);
+  return Math.max(0, Math.min(100, Math.round(score / total * 100)));
+}
+export function identityKeyForLead(lead = {}) {
+  const placeId = String(lead.placeId || extractPlaceId(lead.mapsUrl || '') || '').trim();
+  if (placeId) return 'place:' + placeId;
+  const name = normalizeCompanyName(lead.name);
+  const phone = digitsOnly(lead.phone || lead.phones?.[0]);
+  const address = normalizeAddressKey(lead.address);
+  if (name && address) return 'name-address:' + name + '|' + address;
+  if (name && phone) return 'name-phone:' + name + '|' + phone;
+  const mapsUrl = String(lead.mapsUrl || '').trim();
+  if (mapsUrl) {
+    try {
+      const url = new URL(mapsUrl);
+      url.hash = '';
+      url.searchParams.sort();
+      return 'url:' + url.href;
+    } catch { return 'url:' + mapsUrl; }
   }
-  const numberPart = pieces[1] || '';
-  const numberMatch = numberPart.match(/^(?:n[ºo.]?\s*)?(\d+[A-Za-z]?(?:-\d+)?)(?:\s*[-/]\s*(.*))?$/i);
-  let cityIndex = pieces.findIndex((piece) => /\s-\s*(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b/i.test(piece));
-  if (!result.number && numberMatch) result.number = numberMatch[1];
-  if (numberMatch?.[2]) result.neighborhood = numberMatch[2].trim();
-  else if (pieces.length > 2 && (!cityIndex || cityIndex > 2)) result.neighborhood = pieces[2];
-  if (cityIndex >= 0) result.city = pieces[cityIndex].replace(/\s*-\s*[A-Z]{2}\s*$/i, '').trim();
-  else if (pieces.length > 3) result.city = pieces[3].replace(/\b\d{5}-?\d{3}\b/g, '').trim();
-  if (result.city && result.state) result.confidence = 'medium';
+  return name ? 'name:' + name : '';
+}
+
+export function normalizeLeadRecord(lead = {}, owner = '') {
+  const mapsUrl = String(lead.mapsUrl || '').trim();
+  const placeId = String(lead.placeId || extractPlaceId(mapsUrl) || '').trim();
+  const phone = String(lead.phone || '').trim();
+  const phones = [...new Set([...(Array.isArray(lead.phones) ? lead.phones : []), phone].map((item) => normalizeBrazilPhone(item) || String(item || '').trim()).filter(Boolean))];
+  const emails = [...new Set((Array.isArray(lead.emails) ? lead.emails : []).map((email) => String(email).trim().toLowerCase()).filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
+  const stageIds = new Set(CRM_STAGES.map((stage) => stage.id));
+  return {
+    ...lead, id: String(lead.id || (globalThis.crypto?.randomUUID?.() || 'lead-' + Date.now() + '-' + Math.random().toString(16).slice(2))),
+    placeId, identityKey: identityKeyForLead({ ...lead, placeId, mapsUrl }), name: cleanText(lead.name) || 'Empresa sem nome identificado',
+    category: cleanText(lead.category), categoryPath: lead.categoryPath || cleanText(lead.category).split(/\s*[>›|/]\s*/).filter(Boolean),
+    phone: phones[0] || '', phones, phoneTypes: phones.map(classifyPhone),
+    emails, emailTypes: Object.fromEntries(emails.map((email) => [email, classifyEmail(email)])),
+    cnpj: normalizeCnpj(lead.cnpj),
+    addressParts: lead.addressParts || parseAddress(lead.address),
+    socialProfiles: lead.socialProfiles || {}, sourceMap: lead.sourceMap || {}, confidence: lead.confidence || {},
+    ratingHistory: Array.isArray(lead.ratingHistory) ? lead.ratingHistory : [],
+    tags: Array.isArray(lead.tags) ? [...new Set(lead.tags)] : [],
+    stage: stageIds.has(lead.stage) ? lead.stage : 'new',
+    owner: String(lead.owner || owner || ''),
+    activities: Array.isArray(lead.activities) ? lead.activities : [],
+    nextFollowUp: lead.nextFollowUp || '',
+    doNotContact: !!lead.doNotContact,
+    closedStatus: lead.closedStatus || 'unknown',
+    qualityScore: Number.isFinite(Number(lead.qualityScore)) ? Number(lead.qualityScore) : qualityScore({ ...lead, phones, emails }),
+    collectedAt: lead.collectedAt || new Date().toISOString(),
+    updatedAt: lead.updatedAt || lead.collectedAt || new Date().toISOString()
+  };
+}
+export function renderTemplate(template, lead, owner = '') {
+  const replacements = {
+    empresa: lead.name || '', categoria: lead.category || 'seu segmento',
+    cidade: lead.city || 'sua região', responsavel: owner || lead.owner || ''
+  };
+  return String(template || '').replace(/\{(empresa|categoria|cidade|responsavel)\}/g, (_, key) => replacements[key]);
+}
+export function isDoNotContact(lead, list = []) {
+  const key = normalizeCompanyName(lead.name);
+  const phone = digitsOnly(lead.phone || lead.phones?.[0]);
+  return !!lead.doNotContact || list.some((item) => (item.placeId && item.placeId === lead.placeId) || (item.nameKey && item.nameKey === key) || (item.phone && item.phone === phone));
+}
+, 'i');
+  let cityStart = pieces.length;
+  const cityIndex = pieces.findIndex((piece) => stateSuffix.test(piece));
+  if (cityIndex >= 0) {
+    const match = pieces[cityIndex].match(new RegExp('^(.*?)\\s*[-/]\\s*(' + stateCodes + ')export function qualityScore(lead = {}, weights = {}) {
+  const w = { ...DEFAULT_WEIGHTS, ...weights };
+  const present = {
+    phone: (lead.phones?.length || lead.phone ? 1 : 0),
+    website: lead.website ? 1 : 0,
+    email: (lead.emails?.length || 0) ? 1 : 0,
+    rating: lead.rating && Number(lead.rating) > 0 ? 1 : 0,
+    reviews: Number(lead.reviewCount) > 0 ? 1 : 0,
+    address: lead.address ? 1 : 0,
+    social: Object.values(lead.socialProfiles || {}).some(Boolean) ? 1 : 0,
+    cnpj: lead.cnpj ? 1 : 0,
+    hours: lead.openingHours ? 1 : 0,
+    reachable: lead.websiteStatus === 'online' ? 1 : 0
+  };
+  const total = Object.values(w).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0) || 1;
+  const score = Object.entries(present).reduce((sum, [key, exists]) => sum + (exists ? Math.max(0, Number(w[key]) || 0) : 0), 0);
+  return Math.max(0, Math.min(100, Math.round(score / total * 100)));
+}
+export function identityKeyForLead(lead = {}) {
+  const placeId = String(lead.placeId || extractPlaceId(lead.mapsUrl || '') || '').trim();
+  if (placeId) return 'place:' + placeId;
+  const name = normalizeCompanyName(lead.name);
+  const phone = digitsOnly(lead.phone || lead.phones?.[0]);
+  const address = normalizeAddressKey(lead.address);
+  if (name && address) return 'name-address:' + name + '|' + address;
+  if (name && phone) return 'name-phone:' + name + '|' + phone;
+  const mapsUrl = String(lead.mapsUrl || '').trim();
+  if (mapsUrl) {
+    try {
+      const url = new URL(mapsUrl);
+      url.hash = '';
+      url.searchParams.sort();
+      return 'url:' + url.href;
+    } catch { return 'url:' + mapsUrl; }
+  }
+  return name ? 'name:' + name : '';
+}
+
+export function normalizeLeadRecord(lead = {}, owner = '') {
+  const mapsUrl = String(lead.mapsUrl || '').trim();
+  const placeId = String(lead.placeId || extractPlaceId(mapsUrl) || '').trim();
+  const phone = String(lead.phone || '').trim();
+  const phones = [...new Set([...(Array.isArray(lead.phones) ? lead.phones : []), phone].map((item) => normalizeBrazilPhone(item) || String(item || '').trim()).filter(Boolean))];
+  const emails = [...new Set((Array.isArray(lead.emails) ? lead.emails : []).map((email) => String(email).trim().toLowerCase()).filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
+  const stageIds = new Set(CRM_STAGES.map((stage) => stage.id));
+  return {
+    ...lead, id: String(lead.id || (globalThis.crypto?.randomUUID?.() || 'lead-' + Date.now() + '-' + Math.random().toString(16).slice(2))),
+    placeId, identityKey: identityKeyForLead({ ...lead, placeId, mapsUrl }), name: cleanText(lead.name) || 'Empresa sem nome identificado',
+    category: cleanText(lead.category), categoryPath: lead.categoryPath || cleanText(lead.category).split(/\s*[>›|/]\s*/).filter(Boolean),
+    phone: phones[0] || '', phones, phoneTypes: phones.map(classifyPhone),
+    emails, emailTypes: Object.fromEntries(emails.map((email) => [email, classifyEmail(email)])),
+    cnpj: normalizeCnpj(lead.cnpj),
+    addressParts: lead.addressParts || parseAddress(lead.address),
+    socialProfiles: lead.socialProfiles || {}, sourceMap: lead.sourceMap || {}, confidence: lead.confidence || {},
+    ratingHistory: Array.isArray(lead.ratingHistory) ? lead.ratingHistory : [],
+    tags: Array.isArray(lead.tags) ? [...new Set(lead.tags)] : [],
+    stage: stageIds.has(lead.stage) ? lead.stage : 'new',
+    owner: String(lead.owner || owner || ''),
+    activities: Array.isArray(lead.activities) ? lead.activities : [],
+    nextFollowUp: lead.nextFollowUp || '',
+    doNotContact: !!lead.doNotContact,
+    closedStatus: lead.closedStatus || 'unknown',
+    qualityScore: Number.isFinite(Number(lead.qualityScore)) ? Number(lead.qualityScore) : qualityScore({ ...lead, phones, emails }),
+    collectedAt: lead.collectedAt || new Date().toISOString(),
+    updatedAt: lead.updatedAt || lead.collectedAt || new Date().toISOString()
+  };
+}
+export function renderTemplate(template, lead, owner = '') {
+  const replacements = {
+    empresa: lead.name || '', categoria: lead.category || 'seu segmento',
+    cidade: lead.city || 'sua região', responsavel: owner || lead.owner || ''
+  };
+  return String(template || '').replace(/\{(empresa|categoria|cidade|responsavel)\}/g, (_, key) => replacements[key]);
+}
+export function isDoNotContact(lead, list = []) {
+  const key = normalizeCompanyName(lead.name);
+  const phone = digitsOnly(lead.phone || lead.phones?.[0]);
+  return !!lead.doNotContact || list.some((item) => (item.placeId && item.placeId === lead.placeId) || (item.nameKey && item.nameKey === key) || (item.phone && item.phone === phone));
+}
+, 'i'));
+    result.state = match ? match[2].toUpperCase() : pieces[cityIndex].toUpperCase();
+    if (match && match[1].trim()) {
+      result.city = cleanText(match[1]);
+      cityStart = cityIndex;
+    } else if (cityIndex > 0) {
+      result.city = pieces[cityIndex - 1];
+      cityStart = cityIndex - 1;
+    } else {
+      cityStart = cityIndex;
+    }
+  } else if (pieces.length >= 3) {
+    result.city = pieces[pieces.length - 1];
+    cityStart = pieces.length - 1;
+  }
+
+  const addressParts = pieces.slice(0, cityStart);
+  if (!addressParts.length && pieces.length === 1) {
+    result.street = pieces[0];
+    return result;
+  }
+
+  const first = addressParts.shift() || '';
+  const inlineNumber = first.match(/^(.*?)\\s+(?:n[ºo.]?\\s*)?(\\d+[A-Za-z]?(?:-\\d+)?|s\\/n)$/i);
+  if (inlineNumber) {
+    result.street = cleanText(inlineNumber[1]);
+    result.number = inlineNumber[2].toLowerCase() === 's/n' ? 's/n' : inlineNumber[2];
+  } else {
+    result.street = first;
+  }
+
+  const numberPattern = /^\\s*(?:n[ºo.]?\\s*)?(\\d+[A-Za-z]?(?:-\\d+)?|s\\/n)(?:\\s*[-/]\\s*(.*))?$/i;
+  const extra = [...addressParts];
+  if (!result.number && extra.length) {
+    const match = extra[0].match(numberPattern);
+    if (match) {
+      result.number = match[1].toLowerCase() === 's/n' ? 's/n' : match[1];
+      if (match[2]) result.complement = cleanText(match[2]);
+      extra.shift();
+    }
+  }
+  if (!result.complement && extra.length && /\\b(sala|conjunto|loja|bloco|andar|apto|apartamento|galp[aã]o|fundos|casa)\\b/i.test(extra[0])) {
+    result.complement = extra.shift();
+  }
+  if (extra.length) {
+    result.neighborhood = extra.pop();
+    if (!result.complement && extra.length) result.complement = extra.join(', ');
+  }
+  if (result.street && result.city && result.state) result.confidence = result.number ? 'high' : 'medium';
+  else if (result.street && result.neighborhood) result.confidence = 'medium';
   return result;
 }
 export function qualityScore(lead = {}, weights = {}) {
