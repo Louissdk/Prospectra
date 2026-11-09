@@ -34,3 +34,12 @@ test('includes exact geographic coordinates and their origin in XLSX output', as
   assert.ok(zippedText.includes('-46.633308'));
   assert.ok(zippedText.includes('google_maps_place_url'));
 });
+
+test('keeps zero coordinates and stores latitude and longitude as numeric XLSX cells', async () => {
+  const blob=createXlsx([{name:'Meridiano zero',latitude:0,longitude:0,coordinatesSource:'google_maps_place_url'}]);
+  const zippedText=new TextDecoder().decode(new Uint8Array(await blob.arrayBuffer()));
+  assert.ok(zippedText.includes('<v>0</v>'));
+  assert.ok(zippedText.includes('Latitude'));
+  assert.ok(zippedText.includes('Longitude'));
+  assert.ok(zippedText.includes('Origem das coordenadas'));
+});

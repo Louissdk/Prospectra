@@ -62,7 +62,7 @@ Todas as alterações importantes do Prospectra são registradas neste arquivo.
 ### Cobertura geográfica
 - Captura de latitude e longitude exatas quando disponíveis na URL da ficha do Maps.
 - Visualização proporcional por coordenadas, sem apresentar um mapa-base cartográfico.
-- Exportação KML e GeoJSON; os campos de coordenadas também ficam disponíveis em CSV e XLSX.
+- Exportação KML e GeoJSON; os campos de coordenadas ficam disponíveis em CSV, XLSX e Google Sheets. A planilha grava latitude/longitude como números e neutraliza entradas com potencial de injeção de fórmulas.
 
 ### Relatórios e integrações
 - Exportação CSV customizável, com chave de identidade, e presets básicos HubSpot, Pipedrive e Salesforce.

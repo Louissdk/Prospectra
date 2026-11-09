@@ -20,6 +20,9 @@ const COLUMNS = [
   { key: 'latitude', title: 'Latitude', width: 16 },
   { key: 'longitude', title: 'Longitude', width: 16 },
   { key: 'coordinatesSource', title: 'Origem das coordenadas', width: 26 },
+  { key: 'latitude', title: 'Latitude', width: 16 },
+  { key: 'longitude', title: 'Longitude', width: 16 },
+  { key: 'coordinatesSource', title: 'Origem das coordenadas', width: 26 },
   { key: 'searchTerm', title: 'Termo pesquisado', width: 26 },
   { key: 'mapsUrl', title: 'Google Maps', width: 38 },
   { key: 'collectedAt', title: 'Data da coleta', width: 22 }
@@ -34,7 +37,7 @@ function cellValue(row, key) {
     case 'emailStatus': return row.emails?.length ? 'Encontrado' : (row.emailStatus || (row.website ? 'Não localizado' : 'Sem site'));
     case 'rating': return row.rating || '';
     case 'reviewCount': return row.reviewCount || '';
-    default: return row[key] || '';
+    default: return row[key] ?? '';
   }
 }
 
@@ -66,6 +69,9 @@ function buildSheet(rows) {
       }
       if (column.key === 'reviewCount' && value !== '' && Number.isFinite(Number(value))) {
         return `<c r="${ref}" s="${alternate ? 6 : 4}"><v>${Number(value)}</v></c>`;
+      }
+      if (['latitude','longitude'].includes(column.key) && value !== '' && Number.isFinite(Number(value))) {
+        return `<c r="${ref}" s="${baseStyle}"><v>${Number(value)}</v></c>`;
       }
       return `<c r="${ref}" s="${baseStyle}" t="inlineStr"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`;
     }).join('');

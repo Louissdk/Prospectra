@@ -34,7 +34,8 @@ function doPost(e) {
       'E-mails', 'Endereço', 'Cidade', 'Site', 'Status do site', 'CNPJ',
       'Instagram', 'Facebook', 'LinkedIn', 'Avaliação', 'Nº avaliações',
       'Etapa CRM', 'Responsável', 'Score', 'Etiquetas', 'Próximo follow-up',
-      'Link Google Maps', 'Data da coleta', 'Última atualização'
+      'Link Google Maps', 'Data da coleta', 'Última atualização',
+      'Latitude', 'Longitude', 'Origem das coordenadas'
     ];
 
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
@@ -68,9 +69,10 @@ function doPost(e) {
         lead.rating || '', lead.reviewCount || '', lead.stage || '',
         lead.owner || '', lead.qualityScore || 0, (lead.tags || []).join(' | '),
         lead.nextFollowUp || '', lead.mapsUrl || '', lead.collectedAt || '',
-        lead.updatedAt || new Date().toISOString()
+        lead.updatedAt || new Date().toISOString(),
+        lead.latitude ?? '', lead.longitude ?? '', lead.coordinatesSource || ''
       ];
-      byIdentity.set(identityKey, row);
+      byIdentity.set(identityKey, row.map(safeCell));
     });
 
     const rows = Array.from(byIdentity.values());
@@ -87,6 +89,14 @@ function doPost(e) {
   } catch (error) {
     return output({ ok: false, error: String(error && error.message || error) });
   }
+}
+
+
+function safeCell(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'string') return value;
+  // Impede que dados externos sejam interpretados como fórmulas pelo Sheets.
+  return /^[\\s]*[=+\\-@]/.test(value) ? "'" + value : value;
 }
 
 function output(value) {
@@ -130,6 +140,7 @@ O Prospectra envia lotes de até 200 leads e verifica o JSON de resposta do Apps
 - O token é enviado no corpo JSON da requisição POST, não na URL.
 - Não compartilhe o token nem a URL de implantação com pessoas que não devam acessar a integração.
 - A planilha e o Apps Script permanecem sob sua conta Google.
+- O Apps Script neutraliza conteúdo textual que comece com `=`, `+`, `-` ou `@` antes de gravar, prevenindo que nomes e outros dados sejam interpretados como fórmulas.
 - A aba Prospectra Leads é gerenciada pelo script. Não use essa aba para anotações manuais; crie outra aba para observações.
 - A primeira sincronização após migrar uma planilha antiga pode deixar linhas duplicadas se os registros não possuírem IDs ou chaves de identidade correspondentes. Faça uma cópia da planilha antes de atualizar o script.
 - A comunicação entre o Chrome e Apps Script deve ser testada no seu próprio ambiente. Restrições de domínio, políticas organizacionais ou alterações no serviço podem impedir a chamada.
