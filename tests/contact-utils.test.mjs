@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decodeEmailText, extractContactLinks, extractEmails, isPublicHttpUrl, safeCsvCell, toCsv } from '../contact-utils.js';
+import { decodeEmailText, extractContactLinks, extractEmails, isPublicHttpUrl, safeCsvCell, toCsv, normalizePhone, buildWhatsAppUrl } from '../contact-utils.js';
 
 test('extracts and deduplicates plain and mailto emails', () => {
   const html = '<a href="mailto:Vendas@Empresa.com.br">fale conosco</a><p>contato@empresa.com.br</p><p>suporte@empresa.com.br</p>';
@@ -49,4 +49,27 @@ test('CSV cells are quoted and formula neutralized', () => {
   const csv = toCsv([{ name: '=CMD()', emails: ['a@b.com'] }]);
   assert.ok(csv.startsWith('\uFEFF'));
   assert.ok(csv.includes("'=CMD()"));
+});
+
+
+test('keeps phone number and WhatsApp URL as separate values', () => {
+  assert.equal(normalizePhone('+55 11 98765-4321'), '+55 (11) 98765-4321');
+  assert.equal(buildWhatsAppUrl('+55 (11) 98765-4321'), 'https://wa.me/5511987654321');
+  assert.equal(buildWhatsAppUrl('(11) 3333-4444'), 'https://wa.me/551133334444');
+  assert.equal(buildWhatsAppUrl('11987654321'), 'https://wa.me/5511987654321');
+  assert.equal(buildWhatsAppUrl('telefone sem número'), '');
+});
+
+test('CSV exports independent lead, category, phone, WhatsApp and website columns', () => {
+  const csv = toCsv([{
+    name: 'Clínica Exemplo', category: 'Dentista', phone: '+55 (11) 98765-4321',
+    whatsappUrl: 'https://wa.me/5511987654321', website: 'https://clinica.example.com',
+    city: 'Guarulhos, SP', searchTerm: 'dentista', emails: ['contato@clinica.com.br'],
+    rating: '4.8', reviewCount: '125', mapsUrl: 'https://maps.google.com/example'
+  }]);
+  assert.ok(csv.includes('\"Nome do lead\";'));
+  assert.ok(csv.includes('\"Categoria do lead\";'));
+  assert.ok(csv.includes('https://wa.me/5511987654321'));
+  assert.ok(csv.includes('https://clinica.example.com'));
+  assert.ok(csv.includes('Guarulhos, SP'));
 });

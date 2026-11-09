@@ -1,18 +1,19 @@
 # Prospectra
 
-**Prospectra** é uma extensão Manifest V3 para Chrome que transforma resultados visíveis do Google Maps em uma base local de prospecção.
+**Prospectra 1.1.0** é uma extensão Manifest V3 para Chrome que transforma resultados do Google Maps em uma base organizada de prospecção local.
 
-## O que faz
+## Novidades da versão 1.1.0
 
-- Captura empresas exibidas na lista de resultados do Google Maps.
-- Abre fichas de empresas para tentar localizar nome, categoria, telefone, endereço, site, avaliação e link do Maps.
-- Mostra explicitamente se um site foi identificado.
-- Consulta o site e até duas páginas internas de contato/sobre para localizar e-mails publicados.
-- Registra os resultados como `Encontrado`, `Não localizado`, `Sem site`, `Falha ao consultar` ou `Bloqueado`.
-- Remove duplicados pelo link do Google Maps e atualiza dados de uma empresa já salva.
-- Salva a base no armazenamento local do perfil do Chrome.
-- Exporta CSV compatível com Excel (UTF-8, separador `;`, proteção contra fórmulas) e JSON.
-- Permite buscar, filtrar e copiar e-mails.
+- Pesquisa iniciada dentro da extensão com **termo + cidade/região**.
+- Quantidade configurável de **1 a 500 leads** por coleta, sem o teto anterior de 40.
+- Percurso progressivo da lista do Google Maps para carregar e processar resultados além do primeiro lote visível.
+- Filtro de **nota mínima**: qualquer avaliação, 3,0+, 3,5+, 4,0+, 4,5+ ou 5,0. Leads abaixo do mínimo e leads sem avaliação identificável são descartados quando o filtro está ativo.
+- Telefone normalizado em coluna própria, sem substituir o número por um link.
+- Link `https://wa.me/` separado do telefone e do site oficial.
+- Nome e categoria do lead em colunas independentes.
+- Exportação **Excel `.xlsx` real**, com cabeçalho formatado, linhas alternadas, filtros, larguras de coluna ajustadas e primeira linha congelada.
+- CSV atualizado com campos separados, incluindo telefone, WhatsApp, site, e-mail, categoria, cidade, termo e links.
+- Migração dos registros antigos que tinham URLs do WhatsApp misturadas nos campos de telefone ou site.
 
 ## Instalação no Chrome
 
@@ -20,18 +21,39 @@
 2. Abra `chrome://extensions` no Chrome.
 3. Ative **Modo do desenvolvedor**.
 4. Clique em **Carregar sem compactação**.
-5. Selecione a pasta extraída `Prospectra` (a pasta que contém `manifest.json`).
-6. Fixe o ícone da extensão na barra do Chrome.
-7. Abra o Google Maps, pesquise um segmento e uma região, depois clique no ícone do Prospectra.
-8. Use **Coletar resultados visíveis**. Para capturar mais empresas, role a lista do Google Maps para carregar mais resultados e execute outra coleta.
+5. Selecione a pasta `Prospectra` que contém `manifest.json`.
+6. Fixe o ícone do Prospectra na barra do Chrome.
 
-> O Chrome não instala extensões diretamente de um ZIP local. É preciso extrair o arquivo e usar **Carregar sem compactação**, ou publicar a extensão na Chrome Web Store.
+## Como pesquisar
 
-## Como obter e-mails
+1. Abra o painel lateral do Prospectra.
+2. Digite o segmento no campo **O que você quer encontrar?** (ex.: `clínicas odontológicas`).
+3. Informe a cidade ou região (ex.: `Guarulhos, SP`).
+4. Clique em **Pesquisar termo + cidade no Maps**.
+5. Aguarde o Google Maps carregar os resultados.
+6. Escolha a quantidade desejada (1 a 500) e a nota mínima.
+7. Clique em **Coletar até a quantidade escolhida**.
 
-O Google Maps normalmente não fornece o e-mail da empresa na ficha pública. O Prospectra tenta encontrá-lo no site informado pela própria ficha, procurando endereços `mailto:`, endereços presentes no HTML e páginas internas com nomes como `contato`, `fale conosco`, `sobre`, `equipe` e `atendimento`.
+A extensão percorre a lista de resultados progressivamente. A quantidade coletada depende dos resultados que o Google Maps realmente disponibilizar para aquela combinação de termo, cidade, filtros e sessão. Pedir 100 não significa que existem 100 resultados elegíveis. O painel informa quantos foram coletados e quantos foram descartados pelo critério de avaliação.
 
-A extensão limita a consulta a três páginas por empresa nesta versão. Um e-mail só é exibido quando foi localizado publicamente. **“Não localizado” não significa que a empresa não tenha e-mail**: o endereço pode não estar publicado, estar protegido contra robôs, carregado por JavaScript ou escondido em outro canal.
+## Campos coletados
+
+- Nome do lead.
+- Categoria do lead.
+- Telefone em texto simples e normalizado.
+- Link direto do WhatsApp (`wa.me`), em coluna separada.
+- Endereço.
+- Site oficial informado na ficha pública.
+- E-mails publicados encontrados no site e em páginas de contato.
+- Nota e quantidade de avaliações.
+- Cidade/região e termo pesquisado.
+- Link da ficha no Google Maps.
+
+O Google Maps normalmente não fornece e-mail diretamente. O Prospectra tenta localizá-lo no site público e em até duas páginas internas de contato/sobre. **“Não localizado” não significa que a empresa não tenha e-mail**: o endereço pode não estar publicado, estar protegido, ser carregado por JavaScript ou exigir interação.
+
+## Exportação da planilha
+
+Prefira **Excel (.xlsx)** para obter formatação de cabeçalho, filtros, largura de colunas, linhas alternadas e cabeçalho congelado. CSV também está disponível para importação em outros sistemas. O campo Telefone contém somente o número; o campo WhatsApp contém a URL `wa.me`; e o campo Site da empresa contém apenas o endereço do site, sem misturar canais.
 
 ## Permissões e privacidade
 
@@ -39,36 +61,29 @@ A extensão limita a consulta a três páginas por empresa nesta versão. Um e-m
 - `storage`: mantém os leads no armazenamento local do Chrome.
 - `sidePanel`: apresenta o painel lateral.
 - `downloads`: permite exportar os dados.
-- A permissão opcional `http://*/*` e `https://*/*` só é solicitada quando a busca automática de e-mails está marcada. O Chrome mostrará o pedido de acesso aos sites; sem aprovação, a coleta de empresas continua, mas o enriquecimento de e-mails é pulado.
+- A permissão opcional `http://*/*` e `https://*/*` só é solicitada quando a busca automática de e-mails está marcada. Sem aprovação, a coleta de empresas continua, mas o enriquecimento de e-mails é pulado.
 - Não existe conta, analytics, servidor próprio ou sincronização remota nesta versão.
-- Os dados ficam no perfil local do navegador e podem ser apagados nas configurações do Prospectra.
-- A consulta de um site pode revelar ao site o IP e os dados normais de conexão do usuário, como qualquer visita feita pelo navegador.
 
-## Limitações importantes
+## Limitações conhecidas
 
 1. A estrutura HTML do Google Maps muda sem aviso. Seletores podem deixar de funcionar e exigir atualização.
-2. A extensão coleta os cartões que já estão carregados na lista. Role a lista para carregar mais empresas.
-3. O Google pode limitar a navegação automatizada, apresentar CAPTCHA ou alterar o painel de detalhes.
-4. Alguns sites bloqueiam consultas, exigem JavaScript, Cloudflare, consentimento ou login. Nesses casos, o e-mail pode não ser localizado.
-5. A extensão não contorna CAPTCHA, login, paywall ou controles de acesso.
-6. A coleta de dados deve respeitar os termos dos serviços utilizados, a legislação aplicável e as regras de proteção de dados. Use os contatos para finalidades legítimas e respeite solicitações de não contato.
-7. Esta extensão é uma nova implementação Manifest V3. Ela não executa o backend Go/Playwright do projeto original dentro do Chrome.
+2. A extensão tenta percorrer os resultados carregados por rolagem progressiva, mas o Google pode limitar a quantidade, aplicar filtros internos, ocultar cartões ou encerrar a paginação antes do número solicitado.
+3. A abertura de fichas é sequencial para evitar sobrecarregar o Maps; coletas grandes podem demorar.
+4. O Google pode apresentar CAPTCHA, exigir login ou limitar a navegação. O Prospectra não contorna CAPTCHA, login, paywall ou controles de acesso.
+5. Alguns sites bloqueiam consultas, exigem JavaScript, Cloudflare, consentimento ou login. Nesses casos, o e-mail pode não ser localizado.
+6. A extensão não garante que todos os leads tenham telefone, site ou e-mail: esses campos dependem da informação publicamente disponível em cada ficha e site.
+7. Use a ferramenta conforme os termos dos serviços utilizados, a legislação aplicável e as regras de proteção de dados. Respeite pedidos de não contato.
 
 ## Desenvolvimento e testes
 
-Requer Node.js 18+ para executar os testes utilitários:
+Requer Node.js 18+:
 
 ```bash
-node --test tests/contact-utils.test.mjs
+npm test
+npm run check
 ```
 
-Valide a sintaxe dos scripts:
-
-```bash
-node --check service-worker.js
-node --check content.js
-node --check sidepanel.js
-```
+O teste de workbook também grava `/tmp/prospectra-workbook-test.xlsx` para validação estrutural com ferramentas compatíveis com XLSX.
 
 ## Estrutura
 
@@ -76,29 +91,24 @@ node --check sidepanel.js
 Prospectra/
 ├── manifest.json
 ├── service-worker.js
-├── contact-utils.js
 ├── content.js
+├── contact-utils.js
+├── workbook.js
 ├── sidepanel.html
 ├── sidepanel.css
 ├── sidepanel.js
+├── package.json
 ├── icons/
 └── tests/
 ```
 
-## Privacidade e uso responsável
-
-O Prospectra foi desenhado para organizar dados empresariais que estejam publicamente disponíveis. A existência de um e-mail publicado não representa consentimento para envio irrestrito de mensagens. Não utilize a extensão para spam, coleta de dados sensíveis ou contato após oposição do destinatário.
-
 ## Publicar no GitHub
 
-O script `publicar-github.ps1` cria o repositório `Louissdk/Prospectra` e envia o código usando o GitHub CLI. No Windows, abra PowerShell na pasta extraída e execute:
+A publicação utiliza GitHub CLI autenticado. Na pasta extraída, execute o arquivo diretamente:
 
 ```powershell
-# Uma vez: instale https://cli.github.com/ e autentique sua conta
  gh auth login
-
-# Cria o repositório público e envia o código
  .\publicar-github.ps1 -Visibility Public
 ```
 
-Para manter o código privado, use `-Visibility Private`. O script não contém nem solicita token em texto: usa a sessão autenticada do GitHub CLI.
+O script usa `$PSScriptRoot`, portanto deve ser executado como arquivo `.ps1`, não colado linha por linha no terminal.

@@ -36,13 +36,36 @@
           </div>
           <span class="step-number">01</span>
         </div>
-        <label for="captureLimit" class="field-label">Quantidade máxima por coleta</label>
-        <select id="captureLimit" class="select-control">
-          <option value="10">10 empresas</option>
-          <option value="20" selected>20 empresas</option>
-          <option value="30">30 empresas</option>
-          <option value="40">40 empresas</option>
-        </select>
+        <div class="search-form-grid">
+          <div class="form-field form-field-wide">
+            <label for="searchTerm" class="field-label">O que você quer encontrar?</label>
+            <input id="searchTerm" class="text-control" type="text" maxlength="120" placeholder="Ex.: clínicas odontológicas" autocomplete="off">
+          </div>
+          <div class="form-field form-field-wide">
+            <label for="searchCity" class="field-label">Cidade ou região</label>
+            <input id="searchCity" class="text-control" type="text" maxlength="120" placeholder="Ex.: Guarulhos, SP" autocomplete="off">
+          </div>
+          <button id="searchMapsButton" class="secondary-button search-maps-button" type="button">⌕ Pesquisar termo + cidade no Maps</button>
+        </div>
+        <div class="capture-options-grid">
+          <div class="form-field">
+            <label for="captureLimit" class="field-label">Quantidade de leads</label>
+            <input id="captureLimit" class="text-control" type="number" min="1" max="500" step="1" value="40" inputmode="numeric">
+            <small class="field-hint">Até 500 por coleta. O Maps pode ter menos resultados disponíveis.</small>
+          </div>
+          <div class="form-field">
+            <label for="minimumRating" class="field-label">Nota mínima</label>
+            <select id="minimumRating" class="select-control">
+              <option value="0">Qualquer avaliação</option>
+              <option value="3">3,0 estrelas ou mais</option>
+              <option value="3.5">3,5 estrelas ou mais</option>
+              <option value="4" selected>4,0 estrelas ou mais</option>
+              <option value="4.5">4,5 estrelas ou mais</option>
+              <option value="5">Somente 5 estrelas</option>
+            </select>
+            <small class="field-hint">Sem nota identificável, o lead será descartado quando houver filtro.</small>
+          </div>
+        </div>
         <label class="check-row" for="autoEnrich">
           <input id="autoEnrich" type="checkbox" checked>
           <span class="custom-check"></span>
@@ -50,7 +73,7 @@
         </label>
         <div class="button-stack">
           <button id="captureButton" class="primary-button" type="button">
-            <span class="button-icon">⌕</span><span>Coletar resultados visíveis</span><span class="button-arrow">↗</span>
+            <span class="button-icon">⌕</span><span>Coletar até a quantidade escolhida</span><span class="button-arrow">↗</span>
           </button>
           <button id="captureOpenButton" class="secondary-button" type="button">Capturar somente a empresa aberta</button>
         </div>
@@ -58,7 +81,7 @@
           <div class="progress-meta"><span id="progressLabel">Preparando coleta</span><strong id="progressValue">0%</strong></div>
           <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
         </div>
-        <div id="statusMessage" class="status-message" role="status" aria-live="polite">Abra o Google Maps, faça uma pesquisa e inicie a coleta.</div>
+        <div id="statusMessage" class="status-message" role="status" aria-live="polite">Informe um segmento e uma cidade para pesquisar, ou abra uma pesquisa do Google Maps manualmente.</div>
       </section>
 
       <section class="metrics-grid" aria-label="Resumo dos contatos">
@@ -105,7 +128,8 @@
         </div>
         <button id="enrichButton" class="enrich-button" type="button" disabled>✧ Buscar e-mails dos leads pendentes</button>
         <div class="export-row">
-          <button id="exportCsvButton" class="export-button" type="button" disabled><span>↓</span> Exportar CSV</button>
+          <button id="exportXlsxButton" class="export-button" type="button" disabled><span>↓</span> Excel (.xlsx)</button>
+          <button id="exportCsvButton" class="export-button export-secondary" type="button" disabled>CSV</button>
           <button id="exportJsonButton" class="export-button export-secondary" type="button" disabled>JSON</button>
         </div>
       </section>
@@ -119,7 +143,7 @@
         <p class="privacy-note">A extensão não envia sua lista para um servidor próprio. As consultas de enriquecimento são feitas diretamente aos sites públicos das empresas.</p>
       </section>
     </main>
-    <footer class="footer"><span>PROSPECTRA 1.0.0</span><span>FEITO PARA PROSPECÇÃO RESPONSÁVEL</span></footer>
+    <footer class="footer"><span>PROSPECTRA 1.1.0</span><span>FEITO PARA PROSPECÇÃO RESPONSÁVEL</span></footer>
   </div>
   <script type="module" src="sidepanel.js"></script>
 </body>

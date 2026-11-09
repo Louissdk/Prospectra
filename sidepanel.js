@@ -1,4 +1,5 @@
-import { toCsv } from './contact-utils.js';
+import { buildWhatsAppUrl, normalizePhone, toCsv } from './contact-utils.js';
+import { createXlsx } from './workbook.js';
 
 const $ = (selector) => document.querySelector(selector);
 const STORAGE_KEY = 'prospectra_leads_v1';
@@ -10,24 +11,39 @@ function normalizeUrl(value) {
   try {
     const url = new URL(value);
     if (!['http:', 'https:'].includes(url.protocol)) return '';
+    if (url.hostname === 'wa.me' || (url.hostname === 'whatsapp.com' || url.hostname.endsWith('.whatsapp.com'))) return '';
     return url.href;
   } catch { return ''; }
 }
 
+function normalizeWhatsApp(value, phone = '') {
+  return buildWhatsAppUrl(value) || buildWhatsAppUrl(phone);
+}
+
 function normalizeLead(item) {
   const emails = [...new Set((Array.isArray(item.emails) ? item.emails : []).map((email) => String(email).trim().toLowerCase()).filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
+  const rawPhone = String(item.phone || '').trim();
+  const legacyWhatsapp = /(?:wa\.me\/|whatsapp\.com\/send)/i.test(rawPhone) ? rawPhone : '';
+  const phone = legacyWhatsapp ? '' : normalizePhone(rawPhone);
+  const websiteCandidate = String(item.website || '').trim();
+  const legacyWebsiteWhatsapp = /(?:wa\.me\/|whatsapp\.com\/send)/i.test(websiteCandidate) ? websiteCandidate : '';
+  const website = normalizeUrl(websiteCandidate);
+  const whatsappUrl = normalizeWhatsApp(item.whatsappUrl || legacyWhatsapp || legacyWebsiteWhatsapp, phone);
   return {
     id: item.id || crypto.randomUUID(),
     name: String(item.name || 'Empresa sem nome identificado').slice(0, 220),
     category: String(item.category || '').slice(0, 140),
-    phone: String(item.phone || '').slice(0, 80),
+    phone: phone.slice(0, 80),
+    whatsappUrl,
     address: String(item.address || '').slice(0, 350),
-    website: normalizeUrl(item.website || ''),
+    website,
     emails,
-    emailStatus: item.emailStatus || (emails.length ? 'found' : (item.website ? 'pending' : 'no_website')),
+    emailStatus: item.emailStatus || (emails.length ? 'found' : (website ? 'pending' : 'no_website')),
     rating: String(item.rating || ''),
     reviewCount: String(item.reviewCount || ''),
     mapsUrl: normalizeUrl(item.mapsUrl || ''),
+    searchTerm: String(item.searchTerm || '').slice(0, 120),
+    city: String(item.city || '').slice(0, 120),
     source: item.source || 'Google Maps',
     collectedAt: item.collectedAt || new Date().toISOString(),
     captureNote: String(item.captureNote || '')
@@ -56,8 +72,9 @@ function setBusy(value) {
   busy = value;
   $('#captureButton').disabled = value;
   $('#captureOpenButton').disabled = value;
+  $('#searchMapsButton').disabled = value;
   $('#enrichButton').disabled = value || !leads.some((lead) => lead.website && !lead.emails.length);
-  $('#captureButton').querySelector('span:nth-child(2)').textContent = value ? 'Coleta em andamento…' : 'Coletar resultados visíveis';
+  $('#captureButton').querySelector('span:nth-child(2)').textContent = value ? 'Coleta em andamento…' : 'Coletar até a quantidade escolhida';
 }
 
 function setProgress(done, total, label = 'Coletando empresas') {
@@ -80,8 +97,12 @@ function mergeLeads(incoming) {
         ...previous,
         ...item,
         phone: item.phone || previous.phone,
+        whatsappUrl: item.whatsappUrl || previous.whatsappUrl,
         address: item.address || previous.address,
         website: item.website || previous.website,
+        category: item.category || previous.category,
+        city: item.city || previous.city,
+        searchTerm: item.searchTerm || previous.searchTerm,
         emails: [...new Set([...(previous.emails || []), ...(item.emails || [])])],
         emailStatus: (item.emails?.length || previous.emails?.length) ? 'found' : (item.emailStatus || previous.emailStatus),
         collectedAt: previous.collectedAt
@@ -94,10 +115,37 @@ function mergeLeads(incoming) {
 async function getActiveMapsTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id || !/^https?:/.test(tab.url || '') || !/google\.[^/]+\/maps/i.test(tab.url)) {
-    throw new Error('Abra uma aba do Google Maps e faça uma pesquisa antes de coletar.');
+    throw new Error('Abra o Google Maps e aguarde os resultados carregarem antes de coletar.');
   }
   await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
   return tab;
+}
+
+async function searchMaps() {
+  if (busy) return;
+  const term = $('#searchTerm').value.trim();
+  const city = $('#searchCity').value.trim();
+  if (!term || !city) {
+    setStatus('Informe o termo de pesquisa e a cidade ou região.', 'error');
+    return;
+  }
+  const query = `${term} ${city}`;
+  const url = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
+  $('#searchMapsButton').disabled = true;
+  setStatus(`Abrindo Google Maps: ${query}…`);
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id && /google\.[^/]+\/maps/i.test(tab.url || '')) {
+      await chrome.tabs.update(tab.id, { url });
+    } else {
+      await chrome.tabs.create({ url, active: true });
+    }
+    setStatus('Pesquisa aberta no Google Maps. Aguarde os resultados carregarem e depois clique em Coletar.', 'success');
+  } catch (error) {
+    setStatus(error?.message || 'Não foi possível abrir a pesquisa no Google Maps.', 'error');
+  } finally {
+    $('#searchMapsButton').disabled = false;
+  }
 }
 
 async function enrichLeads(items) {
@@ -137,38 +185,51 @@ async function enrichLeads(items) {
 async function capture(mode) {
   if (busy) return;
   const wantsEnrich = $('#autoEnrich').checked;
-  // Solicita a permissão opcional diretamente a partir do clique do usuário.
+  const requestedLimit = Math.max(1, Math.min(500, Math.floor(Number($('#captureLimit').value) || 40)));
+  const minRating = Number($('#minimumRating').value) || 0;
+  const searchTerm = $('#searchTerm').value.trim();
+  const city = $('#searchCity').value.trim();
   const permissionPromise = wantsEnrich
     ? chrome.permissions.request({ origins: ['http://*/*', 'https://*/*'] })
     : Promise.resolve(false);
   setBusy(true);
   $('#progressWrap').hidden = false;
-  setProgress(0, 1, 'Conectando ao Google Maps');
+  setProgress(0, requestedLimit, 'Conectando ao Google Maps');
   try {
     const tab = await getActiveMapsTab();
-    setStatus(mode === 'open' ? 'Lendo a ficha aberta…' : 'Lendo cartões e abrindo fichas do Maps…');
+    setStatus(mode === 'open' ? 'Lendo a ficha aberta…' : `Coletando até ${requestedLimit} empresas${minRating ? ` com nota ${minRating.toLocaleString('pt-BR')}+` : ''}…`);
     const response = await chrome.tabs.sendMessage(tab.id, {
       type: 'PROSPECTRA_CAPTURE',
       mode,
-      limit: Number($('#captureLimit').value)
+      limit: requestedLimit,
+      minRating,
+      searchTerm,
+      city
     });
     if (!response?.ok) throw new Error(response?.error || 'A coleta não retornou resultados.');
     const incoming = (response.items || []).map((item) => normalizeLead({ ...item, collectedAt: new Date().toISOString() }));
-    if (!incoming.length) throw new Error('Nenhuma empresa foi capturada.');
-    mergeLeads(incoming);
-    await saveLeads();
-    setProgress(incoming.length, incoming.length, `${incoming.length} empresa(s) capturada(s)`);
+    if (incoming.length) {
+      mergeLeads(incoming);
+      await saveLeads();
+    }
+    const filteredOut = Number(response.filteredOut || 0);
+    if (!incoming.length) {
+      setProgress(0, requestedLimit, 'Nenhum lead passou pelos filtros');
+      setStatus(`Nenhum lead capturado. ${filteredOut} empresa(s) descartada(s) por avaliação abaixo do mínimo ou sem nota identificável.`, 'error');
+      return;
+    }
+    setProgress(incoming.length, requestedLimit, `${incoming.length} de ${requestedLimit} leads coletados`);
     const withWebsite = incoming.filter((item) => item.website).length;
-    setStatus(`${incoming.length} empresa(s) adicionada(s). ${withWebsite} com site identificado.`, 'success');
+    const countMessage = `${incoming.length} lead(s) coletado(s) de ${requestedLimit} solicitados${filteredOut ? `; ${filteredOut} descartado(s) pela nota mínima` : ''}. ${withWebsite} com site.`;
+    setStatus(countMessage, 'success');
     if (wantsEnrich) {
       const permissionGranted = await permissionPromise;
       if (permissionGranted && withWebsite > 0) {
         setStatus(`Coleta concluída. Verificando e-mails de ${withWebsite} site(s)…`);
         const result = await enrichLeads(incoming.map((item) => leads.find((lead) => lead.mapsUrl === item.mapsUrl) || item));
-        setStatus(`Concluído: ${incoming.length} empresa(s), ${withWebsite} site(s) e ${result.found} empresa(s) com e-mail localizado.`, 'success');
-        setProgress(result.checked, result.checked || 1, 'Enriquecimento concluído');
+        setStatus(`${countMessage} ${result.found} empresa(s) com e-mail localizado.`, 'success');
       } else if (!permissionGranted) {
-        setStatus(`Coleta concluída. ${withWebsite} site(s) identificado(s). A busca de e-mails foi pulada porque a permissão não foi concedida.`, 'success');
+        setStatus(`${countMessage} Busca de e-mails não realizada: permissão não concedida.`, 'success');
       }
     }
   } catch (error) {
@@ -201,16 +262,20 @@ function cardHtml(lead, index) {
   const siteHtml = lead.website
     ? `<div class="lead-detail"><span class="detail-icon">↗</span><a href="${escapeHtml(lead.website)}" target="_blank" rel="noopener noreferrer">${escapeHtml(new URL(lead.website).hostname)}</a></div>`
     : '';
+  const whatsappHtml = lead.whatsappUrl
+    ? `<div class="lead-detail"><span class="detail-icon">◉</span><a href="${escapeHtml(lead.whatsappUrl)}" target="_blank" rel="noopener noreferrer">WhatsApp separado ↗</a></div>`
+    : '';
   const phoneHtml = lead.phone
     ? `<div class="lead-detail"><span class="detail-icon">☎</span><span>${escapeHtml(lead.phone)}</span></div>` : '';
   const addressHtml = lead.address
     ? `<div class="lead-detail"><span class="detail-icon">⌖</span><span>${escapeHtml(lead.address)}</span></div>` : '';
+  const ratingHtml = lead.rating ? `<span class="badge rating">★ ${escapeHtml(lead.rating)}${lead.reviewCount ? ` · ${escapeHtml(lead.reviewCount)} avaliações` : ''}</span>` : '';
   const mapHtml = lead.mapsUrl
     ? `<div class="lead-actions"><a class="text-action" href="${escapeHtml(lead.mapsUrl)}" target="_blank" rel="noopener noreferrer">Abrir no Google Maps ↗</a></div>` : '';
   return `<article class="lead-card">
     <div class="lead-top"><span class="lead-number">${index + 1}</span><div class="lead-main"><strong class="lead-name">${escapeHtml(lead.name)}</strong><span class="lead-category">${escapeHtml(lead.category || 'Categoria não identificada')}</span></div></div>
-    <div class="lead-badges">${websiteBadge}<span class="badge ${emailClass}">${escapeHtml(emailLabel.toUpperCase())}</span></div>
-    ${phoneHtml}${addressHtml}${siteHtml}
+    <div class="lead-badges">${websiteBadge}<span class="badge ${emailClass}">${escapeHtml(emailLabel.toUpperCase())}</span>${ratingHtml}</div>
+    ${phoneHtml}${whatsappHtml}${addressHtml}${siteHtml}
     <div class="lead-detail"><span class="detail-icon">@</span><div class="email-list">${emailsHtml}</div></div>
     ${mapHtml}
   </article>`;
@@ -226,11 +291,12 @@ function render() {
   $('#websiteCount').textContent = websites.toLocaleString('pt-BR');
   $('#emailCount').textContent = emails.toLocaleString('pt-BR');
   $('#listCount').textContent = total.toLocaleString('pt-BR');
+  $('#exportXlsxButton').disabled = !total;
   $('#exportCsvButton').disabled = !total;
   $('#exportJsonButton').disabled = !total;
   $('#enrichButton').disabled = !leads.some((lead) => lead.website && !lead.emails.length) || busy;
   const filtered = leads.filter((lead) => {
-    const haystack = [lead.name, lead.category, lead.phone, lead.address, lead.website, ...lead.emails].join(' ').toLowerCase();
+    const haystack = [lead.name, lead.category, lead.phone, lead.city, lead.searchTerm, lead.address, lead.website, lead.whatsappUrl, ...lead.emails].join(' ').toLowerCase();
     if (query && !haystack.includes(query)) return false;
     if (filter === 'website' && !lead.website) return false;
     if (filter === 'email' && !lead.emails.length) return false;
@@ -255,18 +321,25 @@ function render() {
 }
 
 function downloadFile(filename, content, mime) {
-  const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+  const blob = content instanceof Blob ? content : new Blob([content], { type: `${mime};charset=utf-8` });
   const url = URL.createObjectURL(blob);
   chrome.downloads.download({ url, filename, saveAs: true }, () => {
+    if (chrome.runtime.lastError) setStatus(chrome.runtime.lastError.message, 'error');
     setTimeout(() => URL.revokeObjectURL(url), 30_000);
   });
 }
 
+function exportXlsx() {
+  if (!leads.length) return;
+  const workbook = createXlsx(leads);
+  downloadFile(`prospectra-leads-${new Date().toISOString().slice(0, 10)}.xlsx`, workbook, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  setStatus(`Planilha Excel formatada preparada com ${leads.length} lead(s).`, 'success');
+}
+
 function exportCsv() {
   if (!leads.length) return;
-  const csv = toCsv(leads);
-  downloadFile(`prospectra-leads-${new Date().toISOString().slice(0, 10)}.csv`, csv, 'text/csv');
-  setStatus('Arquivo CSV preparado para exportação.', 'success');
+  downloadFile(`prospectra-leads-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(leads), 'text/csv');
+  setStatus(`CSV preparado com ${leads.length} lead(s).`, 'success');
 }
 
 function exportJson() {
@@ -299,15 +372,17 @@ async function updateTabStatus() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const isMaps = /google\.[^/]+\/maps/i.test(tab?.url || '');
-    $('#tabStatus').textContent = isMaps ? 'Google Maps conectado nesta aba' : 'Abra o Google Maps para coletar';
-  } catch { $('#tabStatus').textContent = 'Abra o Google Maps para coletar'; }
+    $('#tabStatus').textContent = isMaps ? 'Google Maps conectado nesta aba' : 'Pesquise um termo e cidade para começar';
+  } catch { $('#tabStatus').textContent = 'Pesquise um termo e cidade para começar'; }
 }
 
+$('#searchMapsButton').addEventListener('click', searchMaps);
 $('#captureButton').addEventListener('click', () => capture('visible'));
 $('#captureOpenButton').addEventListener('click', () => capture('open'));
 $('#searchInput').addEventListener('input', render);
 $('#filterSelect').addEventListener('change', render);
 $('#refreshButton').addEventListener('click', loadLeads);
+$('#exportXlsxButton').addEventListener('click', exportXlsx);
 $('#exportCsvButton').addEventListener('click', exportCsv);
 $('#exportJsonButton').addEventListener('click', exportJson);
 $('#enrichButton').addEventListener('click', enrichExisting);
@@ -323,7 +398,7 @@ $('#clearButton').addEventListener('click', async () => {
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === 'PROSPECTRA_PROGRESS') {
-    setProgress(message.done || 0, message.total || 1, message.name ? `Abrindo: ${message.name}` : 'Lendo fichas do Maps');
+    setProgress(message.done || 0, message.total || 1, message.name ? `Processando: ${message.name}` : 'Lendo fichas do Maps');
   }
 });
 

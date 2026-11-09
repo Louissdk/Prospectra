@@ -5,12 +5,13 @@
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
   const absolute = (value) => {
-    try { return new URL(value, location.href).href; } catch { return ''; }
+    try { return new URL(value, location.href).href; } catch { return ''; };
   };
   const validMapsTab = () => /(^|\.)google\.[^/]+$/.test(location.hostname) && /\/maps/.test(location.pathname);
 
   function getFeed() {
-    return document.querySelector('[role="feed"]') || document.querySelector('div[aria-label*="Results for"], div[aria-label*="Resultados para"]');
+    return document.querySelector('[role="feed"]') ||
+      document.querySelector('div[aria-label*="Results for"], div[aria-label*="Resultados para"]');
   }
 
   function getCard(anchor) {
@@ -18,10 +19,11 @@
     const direct = anchor.closest('[role="article"], .Nv2PK');
     if (direct) return direct;
     let node = anchor;
-    for (let depth = 0; depth < 7 && node?.parentElement; depth += 1) {
+    for (let depth = 0; depth < 8 && node?.parentElement; depth += 1) {
       node = node.parentElement;
       const text = clean(node.innerText);
-      if (text.length > 25 && text.length < 1000 && (node.querySelector('[aria-label*="star"], [aria-label*="estrela"]') || /\d+[,.]\d/.test(text))) return node;
+      if (text.length > 25 && text.length < 1300 &&
+          (node.querySelector('[aria-label*="star"], [aria-label*="estrela"]') || /\b[0-5][,.]\d\b/.test(text))) return node;
     }
     return anchor.parentElement?.parentElement || anchor;
   }
@@ -30,24 +32,62 @@
     return clean(el?.innerText || el?.textContent || el?.getAttribute?.('aria-label') || '');
   }
 
+  function parseRating(card) {
+    const ratingNode = card?.querySelector('[aria-label*="star"], [aria-label*="estrela"], [aria-label*="Star"], [aria-label*="Estrela"]');
+    const ratingSource = `${ratingNode?.getAttribute('aria-label') || ''} ${card?.innerText || ''}`;
+    const explicit = ratingSource.match(/\b([0-5](?:[,.]\d)?)\s*(?:stars?|estrelas?)\b/i);
+    const decimal = ratingSource.match(/\b([0-5][,.]\d)\b/);
+    const match = explicit || decimal;
+    return match ? match[1].replace(',', '.') : '';
+  }
+
+  function parseReviewCount(text) {
+    const match = String(text || '').match(/\(?\s*([\d.\s,]+)\s*\)?\s*(?:reviews?|avaliações?|avalia[cç][õo]es?)/i);
+    return match ? match[1].replace(/[.\s,]/g, '') : '';
+  }
+
+  function formatPhone(raw) {
+    const value = clean(raw).replace(/^(?:telefone|phone|ligar|call)\s*:?\s*/i, '');
+    let digits = value.replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+      const local = digits.slice(2);
+      return `+55 (${local.slice(0, 2)}) ${local.length === 11 ? local.slice(2, 7) : local.slice(2, 6)}-${local.length === 11 ? local.slice(7) : local.slice(6)}`;
+    }
+    if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+    if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return value.replace(/[\r\n]+/g, ' ').trim();
+  }
+
+  function phoneFromCard(card) {
+    const tel = card?.querySelector('a[href^="tel:"]')?.getAttribute('href');
+    if (tel) return formatPhone(decodeURIComponent(tel.replace(/^tel:/i, '')));
+    const dataItem = card?.querySelector('[data-item-id^="phone:tel:"]')?.getAttribute('data-item-id');
+    if (dataItem) return formatPhone(dataItem.replace(/^phone:tel:/i, ''));
+    const labelled = card?.querySelector('[aria-label*="Telefone"], [aria-label*="Phone"]')?.getAttribute('aria-label');
+    if (labelled) return formatPhone(labelled);
+    const text = card?.innerText || '';
+    const match = text.match(/(?:\+?\d[\d\s().-]{7,}\d)/);
+    return match ? formatPhone(match[0]) : '';
+  }
+
   function extractCard(anchor) {
     const card = getCard(anchor);
     const titleEl = card?.querySelector('.qBF1Pd, [class*="fontHeadlineSmall"], [class*="NrDZNb"], h3');
     const ariaName = clean(anchor.getAttribute('aria-label'));
     const name = textOf(titleEl) || ariaName.replace(/\s+\d+(?:[,.]\d+)?\s*stars?.*$/i, '') || textOf(anchor);
     const cardText = clean(card?.innerText || anchor.innerText);
-    const phoneMatch = cardText.match(/(?:\+?\d[\d\s().-]{7,}\d)/);
-    const ratingMatch = cardText.match(/(?:^|\s)([0-5][,.]\d)(?:\s|$)/);
-    const reviewMatch = cardText.match(/\(?([\d.\s]+)\)?\s*(?:reviews?|avaliações?)/i);
-    const category = clean(card?.querySelector('[class*="W4Efsd"]')?.innerText?.split('·')?.[0] || '');
-    const address = clean(card?.innerText?.split('\n').map((line) => clean(line)).find((line) => /\d+/.test(line) && /[,\-]/.test(line) && line.length > 10) || '');
+    const categorySource = [...(card?.querySelectorAll('[class*="W4Efsd"], [class*="fontBodyMedium"]') || [])]
+      .map((node) => clean(node.innerText)).find((value) => value && value.length < 100);
+    const lines = (card?.innerText || '').split('\n').map(clean).filter(Boolean);
+    const address = lines.find((line) => line !== name && line.length > 10 && /\d/.test(line) && /[,\-]/.test(line) && !/(star|estrela|review|avalia|\+?\d[\d ().-]{7,})/i.test(line)) || '';
     return {
       name: name || 'Empresa sem nome identificado',
-      category,
-      phone: phoneMatch ? clean(phoneMatch[0]) : '',
+      category: clean(categorySource?.split('·')?.[0] || ''),
+      phone: phoneFromCard(card),
       address,
-      rating: ratingMatch ? ratingMatch[1].replace(',', '.') : '',
-      reviewCount: reviewMatch ? reviewMatch[1].replace(/[.\s]/g, '') : '',
+      rating: parseRating(card),
+      reviewCount: parseReviewCount(cardText),
       mapsUrl: absolute(anchor.href),
       source: 'Google Maps'
     };
@@ -70,132 +110,197 @@
   }
 
   function detailRoot() {
-    const main = document.querySelector('[role="main"]') || document;
-    return main;
+    return document.querySelector('[role="main"]') || document;
   }
 
-  function extractDetail(card = {}) {
+  function normalizeWebsite(rawWebsite) {
+    try {
+      const url = new URL(rawWebsite, location.href);
+      if (!['http:', 'https:'].includes(url.protocol)) return '';
+      if (/(^|\.)google\./i.test(url.hostname) || /(^|\.)wa\.me$/i.test(url.hostname) || /whatsapp\.com$/i.test(url.hostname)) return '';
+      if (/goo\.gl|googleadservices/i.test(url.href)) return '';
+      return url.href;
+    } catch { return ''; }
+  }
+
+  function extractWhatsApp(root) {
+    const link = [...root.querySelectorAll('a[href]')].find((anchor) => /(?:wa\.me\/|api\.whatsapp\.com|whatsapp\.com\/send)/i.test(anchor.href));
+    if (!link) return '';
+    try {
+      const url = new URL(link.href);
+      if (url.hostname.endsWith('wa.me')) return `https://wa.me/${url.pathname.replace(/^\/+/, '')}`;
+      const phone = url.searchParams.get('phone');
+      if (phone) return `https://wa.me/${phone.replace(/\D/g, '')}`;
+    } catch {}
+    return '';
+  }
+
+  function extractDetail(card = {}, context = {}) {
     const root = detailRoot();
     const heading = root.querySelector('h1');
     const name = textOf(heading) || card.name;
     const websiteLink = root.querySelector('a[data-item-id="authority"], a[aria-label*="Website"], a[aria-label*="website"], a[aria-label*="Site"], a[aria-label*="site"]');
-    const rawWebsite = websiteLink?.href || '';
-    let website = '';
-    try {
-      const url = new URL(rawWebsite);
-      if (['http:', 'https:'].includes(url.protocol) && !/(^|\.)google\./i.test(url.hostname)) website = url.href;
-    } catch {}
+    let website = normalizeWebsite(websiteLink?.href || '');
     if (!website) {
-      const external = [...root.querySelectorAll('a[href^="http"]')].find((a) => {
-        try { return !/(^|\.)google\./i.test(new URL(a.href).hostname) && !/goo\.gl|googleadservices/i.test(a.href); }
-        catch { return false; }
-      });
-      if (external) website = external.href;
+      const external = [...root.querySelectorAll('a[href^="http"]')].find((anchor) => normalizeWebsite(anchor.href));
+      if (external) website = normalizeWebsite(external.href);
     }
     const addressEl = root.querySelector('button[data-item-id="address"], button[aria-label*="Address"], button[aria-label*="Endereço"], [data-item-id="address"]');
-    const phoneEl = root.querySelector('button[data-item-id^="phone:tel:"], button[aria-label*="Phone"], button[aria-label*="Telefone"], [data-item-id^="phone:tel:"]');
+    const phoneEl = root.querySelector('button[data-item-id^="phone:tel:"], button[aria-label*="Phone"], button[aria-label*="Telefone"], [data-item-id^="phone:tel:"], a[href^="tel:"]');
+    const dataPhone = phoneEl?.getAttribute('data-item-id')?.replace(/^phone:tel:/i, '');
+    const hrefPhone = phoneEl?.getAttribute('href')?.replace(/^tel:/i, '');
+    const ariaPhone = phoneEl?.getAttribute('aria-label') || '';
+    const phone = formatPhone(dataPhone || hrefPhone || ariaPhone || textOf(phoneEl)) || card.phone || '';
     const categoryEl = root.querySelector('button[jsaction*="category"], [class*="DkEaL"]');
-    const emailLinks = [...root.querySelectorAll('a[href^="mailto:"]')].map((a) => a.href.replace(/^mailto:/i, '').split('?')[0]).filter(Boolean);
+    const emailLinks = [...root.querySelectorAll('a[href^="mailto:"]')].map((anchor) => anchor.href.replace(/^mailto:/i, '').split('?')[0]).filter(Boolean);
     return {
       ...card,
+      ...context,
       name: name || card.name,
       website,
+      whatsappUrl: extractWhatsApp(root) || card.whatsappUrl || '',
       address: textOf(addressEl) || card.address || '',
-      phone: textOf(phoneEl) || card.phone || '',
+      phone,
       category: textOf(categoryEl) || card.category || '',
       emails: [...new Set(emailLinks.map((item) => item.toLowerCase()))],
       emailStatus: emailLinks.length ? 'found' : (website ? 'pending' : 'no_website')
     };
   }
 
-  async function waitForDetail(previousUrl, timeout = 5500) {
+  async function waitForDetail(previousUrl, expectedName, timeout = 6500) {
     const started = Date.now();
     while (Date.now() - started < timeout) {
       const heading = detailRoot().querySelector('h1');
-      const hasDetail = heading && clean(heading.textContent).length > 1;
+      const headingText = clean(heading?.textContent || '').toLowerCase();
+      const expected = clean(expectedName).toLowerCase();
+      const hasDetail = headingText.length > 1 && expected.length > 1 && (headingText === expected || headingText.includes(expected));
       const urlChanged = location.href !== previousUrl && /\/maps\/place\//.test(location.pathname);
       if (hasDetail || urlChanged) {
-        await sleep(350);
+        await sleep(500);
         return true;
       }
-      await sleep(180);
+      await sleep(200);
     }
     return false;
   }
 
-  async function returnToResults() {
+  async function returnToResults(previousUrl) {
     const backButton = [...document.querySelectorAll('button')].find((button) => {
       const label = `${button.getAttribute('aria-label') || ''} ${button.getAttribute('title') || ''}`;
-      return /back|voltar|return/i.test(label);
+      return /back|voltar|return|resultados/i.test(label);
     });
-    if (backButton) {
-      backButton.click();
-      for (let i = 0; i < 30; i += 1) {
-        await sleep(180);
-        if (getFeed()) return true;
-      }
+    if (backButton) backButton.click();
+    else if (location.href !== previousUrl) {
+      try { history.back(); } catch {}
     }
-    if (getFeed()) return true;
-    try { history.back(); } catch {}
-    for (let i = 0; i < 30; i += 1) {
-      await sleep(180);
+    for (let i = 0; i < 45; i += 1) {
+      await sleep(200);
       if (getFeed()) return true;
     }
-    return false;
+    return !!getFeed();
   }
 
-  async function captureOpenBusiness() {
-    const details = extractDetail({ mapsUrl: location.href, source: 'Google Maps' });
+  async function captureOpenBusiness(context = {}) {
+    const details = extractDetail({ mapsUrl: location.href, source: 'Google Maps' }, context);
     if (!details.name || details.name === 'Empresa sem nome identificado') {
       throw new Error('Abra a ficha de uma empresa no Google Maps antes de capturá-la.');
     }
-    return [details];
+    return { items: [details], filteredOut: 0 };
   }
 
-  async function captureVisibleBusinesses(limit = 20) {
+  async function captureVisibleBusinesses(limit = 40, minRating = 0, context = {}) {
     if (!validMapsTab()) throw new Error('Abra uma pesquisa do Google Maps antes de iniciar a coleta.');
-    const feed = getFeed();
-    if (!feed) throw new Error('Não encontrei a lista de resultados. Faça uma pesquisa no Google Maps e tente novamente.');
-    const initialCards = collectCards().slice(0, Math.max(1, Math.min(Number(limit) || 20, 40)));
-    if (!initialCards.length) throw new Error('Nenhuma empresa visível foi identificada. Role a lista de resultados para carregar empresas.');
+    let feed = getFeed();
+    if (!feed) throw new Error('Não encontrei a lista de resultados. Aguarde o Google Maps terminar a pesquisa.');
 
+    const maxLeads = Math.max(1, Math.min(Number(limit) || 40, 500));
+    const threshold = Math.max(0, Math.min(Number(minRating) || 0, 5));
     const collected = [];
-    for (let index = 0; index < initialCards.length; index += 1) {
-      const basic = initialCards[index];
-      chrome.runtime.sendMessage({ type: 'PROSPECTRA_PROGRESS', done: index, total: initialCards.length, name: basic.name }).catch(() => {});
-      try {
-        const anchor = [...document.querySelectorAll('a[href*="/maps/place/"]')].find((node) => absolute(node.href) === basic.mapsUrl);
+    const processed = new Set();
+    let filteredOut = 0;
+    let stagnantRounds = 0;
+    let scrollRounds = 0;
+
+    // Processa cada lote visível e avança a lista para forçar o carregamento progressivo do Maps.
+    while (collected.length < maxLeads && scrollRounds < 140 && stagnantRounds < 4) {
+      feed = getFeed();
+      if (!feed) break;
+      const cards = collectCards();
+      let newInRound = 0;
+
+      for (const basic of cards) {
+        if (collected.length >= maxLeads) break;
+        const key = basic.mapsUrl || `${basic.name}|${basic.address}`;
+        if (processed.has(key)) continue;
+        processed.add(key);
+        newInRound += 1;
+
+        const rating = Number(String(basic.rating || '').replace(',', '.'));
+        if (threshold > 0 && (!basic.rating || !Number.isFinite(rating) || rating < threshold)) {
+          filteredOut += 1;
+          chrome.runtime.sendMessage({ type: 'PROSPECTRA_PROGRESS', done: collected.length + filteredOut, total: maxLeads, name: `Descartado por nota: ${basic.name}` }).catch(() => {});
+          continue;
+        }
+
+        chrome.runtime.sendMessage({ type: 'PROSPECTRA_PROGRESS', done: collected.length + filteredOut, total: maxLeads, name: basic.name }).catch(() => {});
+        let details = { ...basic, ...context, website: '', whatsappUrl: '', emails: [], emailStatus: 'pending' };
+        const anchor = [...(getFeed()?.querySelectorAll('a[href*="/maps/place/"]') || [])]
+          .find((node) => absolute(node.href) === basic.mapsUrl);
         if (anchor) {
           const previousUrl = location.href;
-          anchor.scrollIntoView({ block: 'center', behavior: 'auto' });
-          await sleep(120);
-          anchor.click();
-          await waitForDetail(previousUrl);
-          collected.push(extractDetail(basic));
-          if (index < initialCards.length - 1) {
-            const returned = await returnToResults();
-            if (!returned) {
-              collected[collected.length - 1].captureNote = 'A navegação do Maps não retornou à lista; demais fichas não foram abertas.';
-              break;
-            }
+          try {
+            anchor.scrollIntoView({ block: 'center', behavior: 'auto' });
+            await sleep(180);
+            anchor.click();
+            const opened = await waitForDetail(previousUrl, basic.name);
+            if (opened) details = extractDetail(basic, context);
+            else details.captureNote = 'A ficha não abriu a tempo; dados do cartão foram preservados.';
+          } catch (error) {
+            details.captureNote = error?.message || 'Não foi possível abrir a ficha da empresa.';
           }
+          if (opened || getFeed() === null || location.href !== previousUrl) await returnToResults(previousUrl);
         } else {
-          collected.push({ ...basic, website: '', emails: [], emailStatus: 'no_website', captureNote: 'O cartão deixou de estar disponível durante a coleta.' });
+          details.captureNote = 'O cartão saiu da lista antes da abertura da ficha.';
         }
-      } catch (error) {
-        collected.push({ ...basic, website: '', emails: [], emailStatus: 'pending', captureNote: error?.message || 'Não foi possível abrir esta ficha.' });
+        collected.push(details);
       }
+
+      if (collected.length >= maxLeads) break;
+      feed = getFeed();
+      if (!feed) break;
+      if (newInRound === 0) stagnantRounds += 1;
+      else stagnantRounds = 0;
+
+      const beforeTop = feed.scrollTop;
+      const beforeHeight = feed.scrollHeight;
+      const step = Math.max(500, Math.floor(feed.clientHeight * 0.82));
+      feed.scrollTop = Math.min(Math.max(0, feed.scrollHeight - feed.clientHeight), beforeTop + step);
+      scrollRounds += 1;
+      await sleep(1100);
+      const afterFeed = getFeed();
+      if (!afterFeed) break;
+      const afterCards = collectCards();
+      const unseenCards = afterCards.filter((item) => !processed.has(item.mapsUrl || `${item.name}|${item.address}`)).length;
+      const contentGrew = afterFeed.scrollHeight > beforeHeight;
+      const moved = afterFeed.scrollTop !== beforeTop;
+      if (unseenCards > 0 || contentGrew || moved) stagnantRounds = 0;
+      else stagnantRounds += 1;
     }
-    chrome.runtime.sendMessage({ type: 'PROSPECTRA_PROGRESS', done: collected.length, total: initialCards.length, name: '' }).catch(() => {});
-    return collected;
+
+    chrome.runtime.sendMessage({ type: 'PROSPECTRA_PROGRESS', done: collected.length + filteredOut, total: Math.max(1, Math.min(maxLeads, collected.length + filteredOut)), name: 'Coleta concluída' }).catch(() => {});
+    return { items: collected, filteredOut, scanned: processed.size, requested: maxLeads };
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === 'PROSPECTRA_CAPTURE') {
+      const context = {
+        searchTerm: clean(message.searchTerm || ''),
+        city: clean(message.city || '')
+      };
       const task = message.mode === 'open'
-        ? captureOpenBusiness()
-        : captureVisibleBusinesses(message.limit);
-      task.then((items) => sendResponse({ ok: true, items }))
+        ? captureOpenBusiness(context)
+        : captureVisibleBusinesses(message.limit, message.minRating, context);
+      task.then((result) => sendResponse({ ok: true, ...result }))
         .catch((error) => sendResponse({ ok: false, error: error?.message || 'Falha na coleta.' }));
       return true;
     }

@@ -101,6 +101,40 @@ export function extractContactLinks(html = '', baseUrl, limit = 2) {
   return [...links];
 }
 
+export function normalizePhone(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    const local = digits.slice(2);
+    return `+55 (${local.slice(0, 2)}) ${local.length === 11 ? local.slice(2, 7) : local.slice(2, 6)}-${local.length === 11 ? local.slice(7) : local.slice(6)}`;
+  }
+  if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return raw.replace(/[\r\n]+/g, ' ').trim();
+}
+
+export function buildWhatsAppUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    if (url.hostname === 'wa.me' || url.hostname.endsWith('.wa.me')) {
+      const number = url.pathname.replace(/\D/g, '');
+      return number ? `https://wa.me/${number}` : '';
+    }
+    if ((url.hostname === 'whatsapp.com' || url.hostname.endsWith('.whatsapp.com'))) {
+      const number = (url.searchParams.get('phone') || '').replace(/\D/g, '');
+      return number ? `https://wa.me/${number}` : '';
+    }
+  } catch {}
+  let digits = raw.replace(/\D/g, '');
+  if (digits.length === 10 || digits.length === 11) digits = `55${digits}`;
+  if (digits.length < 12 || digits.length > 15) return '';
+  return `https://wa.me/${digits}`;
+}
+
 export function safeCsvCell(value) {
   let text = value == null ? '' : String(value);
   if (/^[\u0000-\u0020]*[=+@-]/.test(text)) text = `'${text}`;
@@ -109,15 +143,16 @@ export function safeCsvCell(value) {
 
 export function toCsv(rows) {
   const headers = [
-    'Empresa', 'Categoria', 'Telefone', 'Endereço', 'Site', 'Tem site', 'Tem e-mail',
-    'E-mails encontrados', 'Status do e-mail', 'Avaliação', 'Quantidade de avaliações',
-    'Google Maps', 'Data da coleta'
+    'Nome do lead', 'Categoria do lead', 'Telefone', 'Link WhatsApp (wa.me)', 'Endereço',
+    'Site da empresa', 'Tem site?', 'E-mails encontrados', 'Tem e-mail?', 'Status do e-mail',
+    'Avaliação (estrelas)', 'Quantidade de avaliações', 'Cidade / região', 'Termo pesquisado',
+    'Link Google Maps', 'Data da coleta'
   ];
   const lines = [headers, ...rows.map((row) => [
-    row.name, row.category, row.phone, row.address, row.website,
-    row.website ? 'Sim' : 'Não identificado', (row.emails || []).length ? 'Sim' : 'Não localizado', (row.emails || []).join(' | '),
-    row.emailStatus || (row.website ? 'Pendente' : 'Sem site'), row.rating,
-    row.reviewCount, row.mapsUrl, row.collectedAt
+    row.name, row.category, row.phone, row.whatsappUrl || buildWhatsAppUrl(row.phone), row.address,
+    row.website, row.website ? 'Sim' : 'Não identificado', (row.emails || []).join(' | '),
+    (row.emails || []).length ? 'Sim' : 'Não localizado', row.emailStatus || (row.website ? 'Pendente' : 'Sem site'),
+    row.rating, row.reviewCount, row.city, row.searchTerm, row.mapsUrl, row.collectedAt
   ])];
   return '\uFEFF' + lines.map((line) => line.map(safeCsvCell).join(';')).join('\r\n');
 }
