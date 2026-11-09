@@ -80,3 +80,23 @@ test('the Maps search action waits for detected business cards instead of report
   assert.match(handler,/readiness\.businessLinks/);
   assert.doesNotMatch(handler,/setStatus\('Pesquisa aberta no Google Maps\. Aguarde os resultados aparecerem\.'\s*,\s*'success'\)/);
 });
+
+test('Maps readiness watcher is shared so tab events cannot cancel the search check',()=>{
+  assert.match(source,/mapsReadinessWatch\?\.tabId===tabId/);
+  assert.match(source,/mapsReadinessWatch=\{tabId,token,promise\}/);
+  assert.match(source,/force\}/);
+});
+test('capture uses the connected Maps tab even when the side panel is focused',()=>{
+  const start=source.indexOf('async function getActiveMapsTab');
+  const end=source.indexOf('async function runCapture',start);
+  const handler=source.slice(start,end);
+  assert.match(handler,/mapsReadinessState\.tabId/);
+  assert.match(handler,/tracked\?\.id && isGoogleMapsUrl/);
+});
+test('readiness card includes a manual recheck and explicit 3-step guidance',async()=>{
+  const html=await readFile(new URL('../sidepanel.html',import.meta.url),'utf8');
+  assert.match(html,/id="checkMapsButton"/);
+  assert.match(html,/Etapa 1\/3/);
+  assert.match(source,/\$\('#checkMapsButton'\)/);
+});
+

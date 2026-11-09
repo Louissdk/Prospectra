@@ -42,6 +42,7 @@ let activeCaptureItems = [];
 let currentView = 'overview';
 let mapsReadinessState = { status: 'idle', pageType: 'unsupported', tabId: null, businessLinks: 0 };
 let mapsReadinessWatchToken = 0;
+let mapsReadinessWatch = null;
 
 const stageLabel = (id) => CRM_STAGES.find((stage) => stage.id === id)?.label || 'Novo';
 const safeExternal = (value) => {
@@ -75,7 +76,7 @@ function setStatus(message, type = '') {
   }
 }
 function mapsModeReady(mode) {
-  if (mapsReadinessState.status !== 'ready') return false;
+  if (mapsReadinessState.status !== 'ready' || !Number.isInteger(mapsReadinessState.tabId)) return false;
   return mode === 'open' ? mapsReadinessState.pageType === 'detail' : mapsReadinessState.pageType === 'search';
 }
 function syncCaptureButtons() {
@@ -710,62 +711,77 @@ function applyMapsReadiness(tabId, result) {
   }
   if (result.ready && result.pageType === 'detail') {
     const name=result.businessName||'empresa';
-    setMapsReadiness('ready','Ficha aberta e pronta','Ficha detectada: '+name+'. Clique em “Ficha aberta” para salvar este estabelecimento.',{tabId,pageType:'detail',businessLinks:0,businessName:name});
+    setMapsReadiness('ready','Ficha aberta e pronta','Etapa 3/3 concluída. “Ficha aberta” está liberado para salvar '+name+'.',{tabId,pageType:'detail',businessLinks:0,businessName:name});
     return true;
   }
   if (result.ready && result.pageType === 'search') {
     const count=Number(result.businessLinks||0);
-    setMapsReadiness('ready','Pesquisa pronta para coleta',count+' ficha(s) de empresa detectada(s). Você já pode clicar em “Iniciar coleta”.',{tabId,pageType:'search',businessLinks:count});
+    setMapsReadiness('ready','Pronto para iniciar a coleta','Etapa 3/3 concluída. Encontramos '+count+' ficha(s) de empresa. O botão “Iniciar coleta” está liberado.',{tabId,pageType:'search',businessLinks:count});
     return true;
   }
   const count=Number(result.businessLinks||0);
   setMapsReadiness('waiting','Aguardando resultados do Google Maps',count?count+' link(s) encontrados, mas a lista ainda não está pronta. Aguarde a página terminar de carregar.':'A pesquisa abriu. A extensão está esperando os cartões de empresas aparecerem. Não precisa clicar de novo.',{tabId,pageType:'loading',businessLinks:count});
   return false;
 }
-async function waitForMapsPageReadiness(tabId,{timeout=45000}={}) {
-  const token=++mapsReadinessWatchToken, deadline=Date.now()+timeout;
-  let latest=null;
-  setMapsReadiness('checking','Verificando a página do Google Maps','Aguardando o carregamento da pesquisa e a identificação das fichas…',{tabId,pageType:'loading',businessLinks:0});
-  while(Date.now()<deadline && token===mapsReadinessWatchToken) {
-    const tab=await chrome.tabs.get(tabId).catch(()=>null);
-    if(!tab) throw new Error('A aba do Google Maps foi fechada antes de ficar pronta.');
-    if(tab.status==='complete' && isGoogleMapsUrl(tab.url||'')) {
-      latest=await queryMapsReadiness(tabId);
-      if(latest) {
-        const ready=applyMapsReadiness(tabId,latest);
-        if(ready||latest.isBlocked) return latest;
+async function waitForMapsPageReadiness(tabId,{timeout=45000,force=false}={}) {
+  if(!force && mapsReadinessWatch?.tabId===tabId) return mapsReadinessWatch.promise;
+  const token=++mapsReadinessWatchToken;
+  const promise=(async()=>{
+    const deadline=Date.now()+timeout;
+    let latest=null;
+    setMapsReadiness('checking','Conectando ao Google Maps','Etapa 2/3: aguardando os cartões das empresas. A coleta será liberada automaticamente quando a lista estiver pronta.',{tabId,pageType:'loading',businessLinks:0});
+    while(Date.now()<deadline && token===mapsReadinessWatchToken) {
+      const tab=await chrome.tabs.get(tabId).catch(()=>null);
+      if(!tab) throw new Error('A aba do Google Maps foi fechada. Abra a pesquisa novamente.');
+      if(tab.status==='complete' && isGoogleMapsUrl(tab.url||'')) {
+        latest=await queryMapsReadiness(tabId);
+        if(latest) {
+          const ready=applyMapsReadiness(tabId,latest);
+          if(ready||latest.isBlocked) return latest;
+        } else {
+          setMapsReadiness('checking','Leitor do Maps sendo conectado','A página abriu, mas o leitor ainda não respondeu. Não clique várias vezes; a extensão está tentando conectar novamente.',{tabId,pageType:'loading'});
+        }
       } else {
-        setMapsReadiness('checking','Carregando o leitor do Prospectra','A página abriu. Estamos conectando o leitor aos resultados do Maps…',{tabId,pageType:'loading'});
+        setMapsReadiness('checking','Abrindo o Google Maps','Etapa 1/3: carregando a pesquisa. Depois vamos conferir se os cartões das empresas apareceram.',{tabId,pageType:'loading'});
       }
-    } else {
-      setMapsReadiness('checking','Abrindo o Google Maps','Aguarde a navegação terminar. A coleta será liberada automaticamente quando as fichas forem detectadas.',{tabId,pageType:'loading'});
+      await delay(700);
     }
-    await delay(700);
-  }
-  if(token===mapsReadinessWatchToken && !latest?.ready && !latest?.isBlocked) {
-    setMapsReadiness('waiting','Maps aberto, mas ainda sem fichas prontas','A extensão não encontrou cartões de empresas. Confira se a pesquisa terminou, se há resultados e se não apareceu uma tela de verificação. Os botões continuam bloqueados até a detecção.',{tabId,pageType:'loading',businessLinks:Number(latest?.businessLinks||0)});
-  }
-  return latest;
+    if(token===mapsReadinessWatchToken && !latest?.ready && !latest?.isBlocked) {
+      setMapsReadiness('waiting','Pesquisa aberta, aguardando resultados','Ainda não foram detectados cartões de empresas. Verifique se o Maps terminou de carregar e se a pesquisa mostra resultados. Use “Verificar” para tentar novamente; a coleta continua bloqueada até a confirmação.',{tabId,pageType:'loading',businessLinks:Number(latest?.businessLinks||0)});
+    }
+    return latest;
+  })();
+  mapsReadinessWatch={tabId,token,promise};
+  try { return await promise; }
+  finally { if(mapsReadinessWatch?.token===token) mapsReadinessWatch=null; }
 }
 async function getActiveMapsTab(mode='visible') {
-  const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
-  if(!tab?.id || !isGoogleMapsUrl(tab.url||'')) {
-    setMapsReadiness('idle','Google Maps não está aberto nesta aba','Clique em “Abrir pesquisa no Maps” para abrir o Maps e conectar a extensão.',{tabId:null,pageType:'unsupported',businessLinks:0});
-    throw new Error('O Google Maps não está aberto na aba ativa. Clique em “Abrir pesquisa no Maps”; a extensão vai aguardar e avisar quando estiver pronta.');
+  const [active]=await chrome.tabs.query({active:true,currentWindow:true});
+  const tracked=Number.isInteger(mapsReadinessState.tabId)
+    ? await chrome.tabs.get(mapsReadinessState.tabId).catch(()=>null)
+    : null;
+  const tab=active?.id && isGoogleMapsUrl(active.url||'')
+    ? active
+    : tracked?.id && isGoogleMapsUrl(tracked.url||'') ? tracked : null;
+  if(!tab?.id) {
+    setMapsReadiness('idle','Google Maps não está conectado','Clique em “Abrir pesquisa no Maps”. A extensão abrirá a pesquisa e acompanhará essa aba, mesmo que você volte ao painel.',{tabId:null,pageType:'unsupported',businessLinks:0});
+    throw new Error('Nenhuma aba do Google Maps está conectada. Clique em “Abrir pesquisa no Maps” e aguarde o aviso de prontidão.');
   }
   let readiness=await queryMapsReadiness(tab.id);
   if(!readiness?.ready) readiness=await waitForMapsPageReadiness(tab.id,{timeout:9000});
   if(!readiness?.ready) {
     applyMapsReadiness(tab.id,readiness);
-    throw new Error(readiness?.isBlocked?'O Google Maps apresentou uma verificação ou limitação de acesso. Resolva isso manualmente antes de coletar.':'O Google Maps está aberto, mas os resultados ainda não foram reconhecidos. Aguarde o aviso “Pesquisa pronta para coleta” antes de iniciar.');
+    throw new Error(readiness?.isBlocked
+      ? 'O Google Maps apresentou uma verificação ou limitação de acesso. Resolva manualmente antes de coletar.'
+      : 'A pesquisa ainda não foi confirmada. Confira o aviso de prontidão acima dos botões e clique em “Verificar” para tentar novamente.');
   }
   if(mode==='open' && readiness.pageType!=='detail') {
     applyMapsReadiness(tab.id,readiness);
-    throw new Error('A página mostra uma lista de resultados, não uma ficha individual. Abra uma empresa no Google Maps para usar “Ficha aberta”.');
+    throw new Error('Você está na lista de resultados. Abra uma empresa no Google Maps; o Prospectra avisará quando a ficha estiver pronta.');
   }
   if(mode!=='open' && readiness.pageType!=='search') {
     applyMapsReadiness(tab.id,readiness);
-    throw new Error('Abra uma pesquisa com a lista de empresas para usar “Iniciar coleta”.');
+    throw new Error('Você está em uma ficha individual. Volte à lista de resultados para usar “Iniciar coleta”.');
   }
   applyMapsReadiness(tab.id,readiness);
   return tab;
@@ -850,8 +866,8 @@ async function searchMaps() {
   if (!term || !city) {setStatus('Informe segmento e cidade.','warning');return;}
   const url='https://www.google.com/maps/search/'+encodeURIComponent(term+' '+city);
   try {
-    setMapsReadiness('checking','Abrindo sua pesquisa no Google Maps','Assim que os cartões de empresas aparecerem, a extensão vai liberar o botão de coleta.',{pageType:'loading',businessLinks:0});
-    setStatus('Abrindo a pesquisa no Google Maps. A extensão vai confirmar quando os resultados estiverem prontos.');
+    setMapsReadiness('checking','Abrindo sua pesquisa no Google Maps','Etapa 1/3: abrindo o Maps. Etapa 2/3: identificando os cartões. Você não precisa clicar novamente.',{pageType:'loading',businessLinks:0});
+    setStatus('Pesquisa enviada ao Google Maps. O Prospectra está aguardando os resultados e avisará quando a coleta estiver liberada.');
     const [active]=await chrome.tabs.query({active:true,currentWindow:true});
     let tab;
     if(active?.id && isGoogleMapsUrl(active.url||'')) {
@@ -862,7 +878,7 @@ async function searchMaps() {
     if(readiness?.ready) {
       setStatus(readiness.pageType==='detail'?'Ficha identificada. O botão “Ficha aberta” está liberado.':'Pesquisa pronta. Foram identificadas '+Number(readiness.businessLinks||0)+' ficha(s); você já pode iniciar a coleta.','success');
     } else if(readiness?.isBlocked) setStatus('O Google Maps exibiu uma verificação ou limitação. Resolva-a manualmente antes de tentar coletar.','warning');
-    else setStatus('A pesquisa foi aberta, mas os cartões de empresas ainda não foram reconhecidos. A coleta permanece bloqueada; confira a página do Maps e aguarde o aviso de prontidão.','warning');
+    else setStatus('A pesquisa foi aberta, mas ainda não foi possível confirmar as fichas. A coleta continua bloqueada por segurança. Confira o Maps e use “Verificar” para tentar novamente.','warning');
   } catch(error) {
     setMapsReadiness('error','Não foi possível abrir a pesquisa','Confira a conexão e tente abrir o Google Maps novamente.',{pageType:'unsupported'});
     setStatus(error?.message||'Não foi possível abrir o Maps.','error');
@@ -1252,19 +1268,27 @@ async function syncSupabase() {
     setStatus('Supabase: '+(error?.message||'falha ao sincronizar'),'error');
   }
 }
-async function updateTabStatus() {
+async function updateTabStatus({force=false}={}) {
   try {
-    const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
-    const maps=!!tab?.id && isGoogleMapsUrl(tab.url||'');
-    if(!maps) {
+    const [active]=await chrome.tabs.query({active:true,currentWindow:true});
+    const tracked=Number.isInteger(mapsReadinessState.tabId)
+      ? await chrome.tabs.get(mapsReadinessState.tabId).catch(()=>null)
+      : null;
+    const tab=active?.id && isGoogleMapsUrl(active.url||'')
+      ? active
+      : tracked?.id && isGoogleMapsUrl(tracked.url||'') ? tracked : null;
+    if(!tab?.id) {
       mapsReadinessWatchToken+=1;
-      $('#tabStatus')?.replaceChildren(document.createTextNode('Aguardando uma página do Google Maps'));
-      setMapsReadiness('idle','Google Maps não está aberto nesta aba','Clique em “Abrir pesquisa no Maps”. A extensão vai detectar os resultados antes de liberar a coleta.',{tabId:null,pageType:'unsupported',businessLinks:0});
+      mapsReadinessWatch=null;
+      $('#tabStatus')?.replaceChildren(document.createTextNode('Aguardando uma pesquisa do Google Maps'));
+      setMapsReadiness('idle','Google Maps ainda não conectado','Etapa 1/3: preencha segmento e região e clique em “Abrir pesquisa no Maps”. Depois, aguarde a confirmação automática.',{tabId:null,pageType:'unsupported',businessLinks:0});
       return;
     }
-    $('#tabStatus')?.replaceChildren(document.createTextNode('Google Maps encontrado. Verificando resultados…'));
-    void waitForMapsPageReadiness(tab.id,{timeout:45000}).then((result)=>{
-      if(result?.ready) $('#tabStatus')?.replaceChildren(document.createTextNode(result.pageType==='detail'?'Ficha do Maps detectada':'Pesquisa do Maps pronta'));
+    $('#tabStatus')?.replaceChildren(document.createTextNode('Google Maps conectado. Conferindo resultados…'));
+    void waitForMapsPageReadiness(tab.id,{timeout:45000,force}).then((result)=>{
+      if(result?.ready) $('#tabStatus')?.replaceChildren(document.createTextNode(result.pageType==='detail'?'Ficha do Maps pronta':'Pesquisa do Maps pronta'));
+      else if(result?.isBlocked) $('#tabStatus')?.replaceChildren(document.createTextNode('Verificação do Google Maps necessária'));
+      else if(result) $('#tabStatus')?.replaceChildren(document.createTextNode('Aguardando cartões de empresas'));
     }).catch((error)=>{
       setMapsReadiness('error','Falha ao verificar o Google Maps',error?.message||'Recarregue a página do Maps.',{tabId:tab.id,pageType:'loading'});
     });
@@ -1302,6 +1326,7 @@ document.addEventListener('drop',async(event)=>{
 });
 
 $('#searchMapsButton').addEventListener('click',searchMaps);
+$('#checkMapsButton')?.addEventListener('click',()=>updateTabStatus({force:true}));
 $('#captureButton').addEventListener('click',()=>captureCurrent('visible'));
 $('#captureOpenButton').addEventListener('click',()=>captureCurrent('open'));
 $('#pauseButton').addEventListener('click',pauseOrResume);
@@ -1384,7 +1409,9 @@ $('#clearQueueButton').addEventListener('click',async()=>{
 chrome.runtime.onMessage.addListener((message)=>{
   if (message?.type==='PROSPECTRA_PROGRESS' && message.taskId===activeTask?.taskId) setProgress(message.done||0,message.total??1,message.name||'Processando');
 });
-chrome.tabs.onActivated.addListener(updateTabStatus);
-chrome.tabs.onUpdated.addListener((_id,change)=>{if(change.status==='complete'||change.url)updateTabStatus();});
+chrome.tabs.onActivated.addListener(()=>updateTabStatus());
+chrome.tabs.onUpdated.addListener((tabId,change)=>{
+  if(tabId===mapsReadinessState.tabId || change.status==='complete') void updateTabStatus();
+});
 load().catch((error)=>setStatus(error?.message||'Não foi possível abrir o banco local.','error'));
 updateTabStatus();

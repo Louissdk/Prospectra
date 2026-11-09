@@ -503,7 +503,7 @@
   }
 
   async function captureVisibleBusinesses(limit = 40, minRating = 0, context = {}, skipPlaceIds = [], skipMapsUrls = []) {
-    if (!validMapsTab()) throw new Error('Abra uma pesquisa do Google Maps antes de iniciar a coleta.');
+    if (!validMapsTab()) throw new Error('Abra uma página oficial em google.com/maps, faça uma pesquisa e aguarde os cartões das empresas aparecerem. Depois confira o aviso de prontidão no Prospectra antes de iniciar a coleta.');
     await waitForResults();
     const parsedLimit = Number(limit);
     const unlimited = Number.isFinite(parsedLimit) && parsedLimit === 0;

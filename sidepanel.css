@@ -214,6 +214,8 @@ a{color:inherit}
  .nav-tab{padding:0 8px}
  .pipeline-board{grid-template-columns:1fr}
  .export-fields{grid-template-columns:1fr}
+ .maps-readiness{gap:7px;padding:9px}
+ .readiness-check{padding:0 7px}
 }
 
 .global-status{display:none;margin-top:8px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:rgba(1,141,62,.035);font-size:8px;line-height:1.45;color:var(--muted)}
@@ -301,6 +303,11 @@ input,select,textarea{accent-color:#018D3E}
 
 .maps-readiness{display:flex;align-items:flex-start;gap:10px;margin-top:12px;padding:11px 12px;border:1px solid rgba(1,141,62,.18);border-radius:11px;background:rgba(255,253,246,.86);transition:background .18s,border-color .18s}
 .maps-readiness .readiness-icon{display:grid;place-items:center;flex:0 0 23px;width:23px;height:23px;border-radius:50%;background:#E9E3D2;color:#536B56;font-size:13px;font-weight:900}
+.readiness-copy{flex:1;min-width:0}
+.readiness-check{flex:0 0 auto;align-self:center;min-height:29px;padding:0 9px;border:1px solid rgba(1,141,62,.22);border-radius:8px;background:#FDF7E6;color:#075E2B;font-size:8px;font-weight:850}
+.readiness-check:hover{border-color:#018D3E;background:rgba(1,141,62,.08)}
+.readiness-check:focus-visible{outline:2px solid #018D3E;outline-offset:2px}
+.maps-readiness[data-state="checking"] .readiness-check{opacity:.65}
 .maps-readiness strong{display:block;font-size:10px;line-height:1.35;color:#173B27}
 .maps-readiness small{display:block;margin-top:3px;font-size:8px;line-height:1.5;color:#536B56}
 .maps-readiness[data-state="checking"]{border-color:rgba(1,141,62,.22);background:rgba(1,141,62,.045)}

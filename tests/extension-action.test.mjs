@@ -17,3 +17,9 @@ test('the refreshed toolbar icon uses the dedicated Prospectra action assets',()
   assert.equal(manifest.action.default_icon['16'],'icons/icon16.png');
   assert.equal(manifest.action.default_icon['32'],'icons/icon32.png');
 });
+
+test('toolbar action creates a Maps tab only when the current tab is not Maps',()=>{
+  assert.match(worker,/if \(tab\?\.id && isGoogleMapsUrl\(tab\.url \|\| ''\)\) return/);
+  assert.match(worker,/chrome\.tabs\.create\(\{ url: 'https:\/\/www\.google\.com\/maps', active: true \}\)/);
+});
+
