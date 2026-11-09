@@ -76,10 +76,10 @@ Os dados encontrados recebem origem e nível de confiança quando possível. E-m
 ## Integrações
 
 ### Google Sheets
-Envia um JSON com os leads para um Web App do Apps Script implantado pelo usuário. O endpoint e token opcional ficam nas configurações locais.
+Envia lotes JSON com leads e tombstones para um Web App do Apps Script implantado pelo usuário. O script usa token obrigatório, limita lotes a 200 registros, serializa atualizações com LockService e neutraliza conteúdo textual que poderia ser interpretado como fórmula. A aba gerenciada é regravada em cada lote; para bases muito grandes isso aumenta o custo de execução. O endpoint e token ficam nas configurações locais.
 
 ### Supabase
-Autentica com e-mail e senha na API Auth e usa a chave anon/public com RLS. A tabela guarda cada lead como JSONB por usuário. A senha não é salva; tokens de sessão ficam no banco local do navegador.
+Autentica com e-mail e senha na API Auth e usa a chave anon/public com RLS. A tabela guarda cada lead como JSONB por usuário. A senha não é salva; tokens de sessão ficam no banco local do navegador. O schema SQL concede acesso à Data API somente para authenticated e mantém isolamento de linhas por auth.uid(). O projeto deve expor o schema public na Data API.
 
 A sincronização lê a nuvem em páginas de até 1.000 registros, com limite combinado de 20.000 linhas (até 10.000 leads ativos e 10.000 tombstones), mescla registros por identidade e usa a data updatedAt mais recente como regra de conflito. Listas e históricos são unidos. Exclusões são propagadas por deleted_at em lotes de até 200, sem remoção física da linha; uma coleta posterior mais nova pode reativar o lead. O resultado depende de relógios dos dispositivos sincronizados.
 

@@ -2,14 +2,17 @@
 
 ## 1. Instalar
 
-1. Abra **Releases** no GitHub e baixe o pacote Prospectra-2.0.0.zip da versão mais recente.
-2. Extraia o ZIP em uma pasta permanente. O manifest.json deve estar na raiz da pasta extraída.
+1. Para uma versão estável, abra **Releases** no GitHub e baixe o ZIP anexado à versão publicada.
+2. Extraia o ZIP em uma pasta permanente. O arquivo manifest.json deve ficar na raiz da pasta extraída.
 
-Se ainda não houver Release publicada, use temporariamente **Code → Download ZIP**.
+**Versão candidata ainda sem Release:** não use **Code → Download ZIP** da branch main, pois ela pode não conter as alterações candidatas. Para testar a versão em homologação, abra a aba **Actions** do repositório, selecione uma execução verde do workflow Prospectra CI ligada à branch `release/prospectra-2.0.0-candidate` e baixe o artefato `prospectra-extension-package`. Só haverá pacote disponível quando as etapas de testes e Chromium terminarem com sucesso.
+
 3. Abra chrome://extensions.
 4. Ative Modo do desenvolvedor.
-5. Clique em **Carregar sem compactação** e escolha a pasta que contém manifest.json.
+5. Clique em **Carregar sem compactação** e escolha a pasta extraída que contém manifest.json.
 6. Fixe a extensão e abra o painel.
+
+Não misture uma pasta de versão anterior com os arquivos do ZIP novo. Extraia cada versão em uma pasta separada e faça backup da base antes de atualizar.
 
 Para atualizar uma instalação Git, use git pull --ff-only origin main na pasta do projeto e clique em Recarregar na página de extensões.
 

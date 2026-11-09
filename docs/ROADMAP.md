@@ -19,13 +19,14 @@ Este roadmap separa o que existe no produto do que seria uma evolução futura. 
 ## Próximas versões sugeridas
 
 ### 2.1 — Robustez operacional
-- [ ] Testes E2E em Chrome real com cenários controlados.
+- [x] Testes automatizados de captura em Chromium com páginas/fixtures controladas.
+- [ ] Homologação manual em perfil Chrome estável com uma sessão real do Google Maps.
 - [x] Checkpoints persistentes e retomada prática da consulta ignorando leads já salvos.
 - [ ] Melhor detecção de fusos/horários e tratamento de campos de endereço.
 - [ ] Histórico de alterações do registro e auditoria de mesclagens.
 - [ ] Fila de enriquecimento com tentativas retomáveis.
 - [ ] Sincronização em nuvem com controle de conflitos por campo.
-- [ ] Exclusão lógica e sincronização de exclusões.
+- [x] Exclusão lógica e sincronização de exclusões por tombstones no Supabase e Google Sheets.
 
 ### 2.2 — CRM de equipe
 - [ ] Múltiplos usuários e responsáveis compartilhados.
