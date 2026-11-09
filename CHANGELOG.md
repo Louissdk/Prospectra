@@ -72,6 +72,10 @@ Todas as alterações importantes do Prospectra são registradas neste arquivo.
 - Sincronização opcional com Supabase, autenticação e políticas RLS.
 - Cobertura regional por cidade e links para abrir pesquisas no Maps.
 
+### Distribuição
+- CI gera um ZIP limpo da extensão, com manifest.json na raiz e sem dependências/testes de desenvolvimento.
+- Tags v* publicam automaticamente uma GitHub Release com o pacote instalável.
+
 ### Segurança e documentação
 - Consolidação de listeners duplicados no service worker.
 - Enriquecimento com limites de tamanho, timeout, validação de URL e redirecionamento.

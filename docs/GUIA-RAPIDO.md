@@ -2,8 +2,10 @@
 
 ## 1. Instalar
 
-1. Baixe o ZIP do repositório pelo botão **Code → Download ZIP**.
-2. Extraia o ZIP em uma pasta permanente.
+1. Abra **Releases** no GitHub e baixe o pacote Prospectra-2.0.0.zip da versão mais recente.
+2. Extraia o ZIP em uma pasta permanente. O manifest.json deve estar na raiz da pasta extraída.
+
+Se ainda não houver Release publicada, use temporariamente **Code → Download ZIP**.
 3. Abra chrome://extensions.
 4. Ative Modo do desenvolvedor.
 5. Clique em **Carregar sem compactação** e escolha a pasta que contém manifest.json.

@@ -5,11 +5,11 @@
   <p>Encontre empresas. Enriqueça contatos. Organize oportunidades. Acompanhe cada próximo passo.</p>
   <p>
     <a href="https://github.com/Louissdk/Prospectra/actions/workflows/ci.yml"><img src="https://github.com/Louissdk/Prospectra/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-    <img src="https://img.shields.io/badge/version-2.0.0-6ea8fa" alt="Version 2.0.0">
-    <img src="https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4" alt="Chrome Manifest V3">
+    <img src="https://img.shields.io/badge/version-2.0.0-018D3E" alt="Version 2.0.0">
+    <img src="https://img.shields.io/badge/Chrome-Manifest%20V3-018D3E" alt="Chrome Manifest V3">
     <img src="https://img.shields.io/badge/language-JavaScript-f7df1e" alt="JavaScript">
-    <img src="https://img.shields.io/badge/data-local--first-41b883" alt="Local first">
-    <img src="https://img.shields.io/badge/license-proprietary-7b8ca8" alt="Proprietary">
+    <img src="https://img.shields.io/badge/data-local--first-018D3E" alt="Local first">
+    <img src="https://img.shields.io/badge/license-proprietary-E71506" alt="Proprietary">
   </p>
   <p>
     <a href="docs/GUIA-RAPIDO.md">Guia rápido</a> ·
@@ -84,8 +84,10 @@ A versão 2.0.0 expande o produto para além da captura: inclui banco local Inde
 
 ### Opção A — Instalação para uso
 
-1. Na página do repositório, clique em **Code → Download ZIP**.
-2. Extraia o arquivo ZIP em uma pasta permanente.
+1. Abra a aba **Releases** do repositório e baixe o pacote Prospectra-2.0.0.zip da versão mais recente.
+2. Extraia o pacote em uma pasta permanente. O manifest.json ficará diretamente na raiz da pasta extraída.
+
+Caso ainda não exista uma Release, use **Code → Download ZIP** como alternativa temporária.
 3. Abra chrome://extensions no Chrome.
 4. Ative **Modo do desenvolvedor**.
 5. Clique em **Carregar sem compactação**.
@@ -159,6 +161,7 @@ As integrações não são ativadas automaticamente. A extensão pede permissão
 | [Roadmap](docs/ROADMAP.md) | Funcionalidades concluídas e próximas evoluções |
 | [Apresentação comercial](docs/MATERIAIS-COMERCIAIS.md) | Posicionamento, público-alvo e checklist de venda |
 | [Checklist de release](docs/RELEASE-CHECKLIST.md) | Processo de validação e publicação |
+| [Distribuição](docs/DISTRIBUICAO.md) | Pacote limpo, tags e GitHub Releases |
 | [Contribuição](CONTRIBUTING.md) | Padrões para desenvolvimento |
 | [Segurança](SECURITY.md) | Relato responsável de vulnerabilidades |
 

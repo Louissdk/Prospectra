@@ -74,3 +74,7 @@ Não foi definido preço nesta documentação. O preço deve ser validado com cl
 A versão candidata oferece uma visualização proporcional dos leads com coordenadas exatas extraídas das fichas do Google Maps e exporta os pontos em KML e GeoJSON. Não inclui tiles de mapa nem geocodificação automática; empresas sem coordenadas permanecem fora do gráfico para não sugerir uma precisão inexistente.
 
 A integração Google Sheets também recebe latitude, longitude e origem das coordenadas, quando disponíveis, e neutraliza entradas que poderiam ser interpretadas como fórmulas pela planilha.
+
+
+## Distribuição GitHub
+O CI gera um pacote ZIP separado para usuários finais, sem dependências de desenvolvimento, e o anexa automaticamente às GitHub Releases quando uma tag de versão v* é publicada. O pacote contém o manifest.json na raiz para instalação por carregamento sem compactação após extração.

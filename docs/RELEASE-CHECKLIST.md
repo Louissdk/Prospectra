@@ -8,6 +8,7 @@
 - [ ] Atualizar README e documentação afetada.
 - [ ] Executar npm run verify em Node.js 20+.
 - [ ] Confirmar que o workflow GitHub Actions ficou verde.
+- [ ] Confirmar que o job package gerou o ZIP limpo e que manifest.json está na raiz do arquivo.
 - [ ] Instalar a pasta em um perfil Chrome limpo.
 - [ ] Testar migração de uma base de versão anterior.
 - [ ] Testar interrupção da coleta, persistência do checkpoint e retomada pela fila sem duplicar os leads salvos.
@@ -26,7 +27,7 @@
 
 - [ ] Criar tag Git com a versão.
 - [ ] Criar GitHub Release com resumo do changelog.
-- [ ] Anexar ZIP da extensão sem node_modules.
+- [ ] Anexar ZIP da extensão sem node_modules, testes ou ferramentas de desenvolvimento. O workflow de tag v* gera e anexa esse pacote automaticamente.
 - [ ] Conferir instalação a partir do ZIP baixado.
 - [ ] Atualizar instruções de instalação e atualização.
 
