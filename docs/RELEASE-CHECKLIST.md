@@ -10,7 +10,8 @@
 - [x] Confirmar que o workflow GitHub Actions ficou verde.
 - [x] Confirmar que o job package gerou o ZIP limpo e que manifest.json está na raiz do arquivo.
 - [x] Executar migração, grants e testes RLS em PostgreSQL 17 descartável no CI.
-- [x] Exercitar autenticação JWT simulada e CRUD via PostgREST 16.5 no CI, incluindo upsert e isolamento de usuários.
+- [x] Exercitar autenticação JWT e CRUD via PostgREST 16.5 no CI, incluindo upsert e isolamento de usuários.
+- [x] Instalar o ZIP final em Chrome com perfil temporário e abrir/navegar pelo painel empacotado no CI.
 - [ ] Instalar a pasta em um perfil Chrome limpo (pendente de validação manual em Chrome estável).
 - [ ] Testar migração de uma base de versão anterior.
 - [ ] Testar interrupção da coleta, persistência do checkpoint e retomada pela fila sem duplicar os leads salvos.
