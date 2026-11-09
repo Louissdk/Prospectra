@@ -4,6 +4,15 @@ Todas as alterações importantes do Prospectra são registradas neste arquivo.
 
 ## [2.0.0] — 2026-11-09
 
+### Correções adicionais da auditoria
+- Permissões de enriquecimento solicitadas em ação explícita; o modo automático usa apenas permissões previamente concedidas.
+- Permissão do DNS-over-HTTPS incluída no fluxo de enriquecimento e MX.
+- Redirecionamentos de sites validados manualmente, bloqueando hosts externos, destinos privados e downgrade de HTTPS.
+- Resultado da fila classificado como concluído, parcial, interrompido ou com falha, evitando mensagens de sucesso enganosas.
+- Parser de endereços melhorado para rua, número, complemento, bairro, cidade, UF e CEP.
+
+
+
 ### Produto e experiência
 - Reorganização do painel em cinco áreas: Visão geral, Leads, Funil, Pesquisas e Configurações.
 - Identidade visual clara em verde `#018D3E`, creme `#FDF7E6` e vermelho `#E71506`, com tipografia, hierarquia, cartões, indicadores e componentes responsivos.

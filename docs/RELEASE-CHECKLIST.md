@@ -35,3 +35,13 @@
 - [ ] Monitorar issues e regressões.
 - [ ] Registrar problemas reproduzíveis.
 - [ ] Priorizar correções antes de acrescentar mais recursos.
+
+
+## Validação adicional da auditoria final
+
+- [ ] Confirmar que o modo automático usa apenas permissões já concedidas e não abre prompts tardios depois de uma coleta longa.
+- [ ] Autorizar novos domínios pela ação explícita "Enriquecer contatos pendentes" e confirmar consulta DNS/MX.
+- [ ] Testar redirecionamento HTTP→HTTPS no mesmo domínio.
+- [ ] Confirmar que redirecionamentos para outro domínio, IP privado e downgrade de HTTPS são bloqueados.
+- [ ] Confirmar que a fila exibe contagem correta de concluídas, parciais, interrompidas e com falha.
+- [ ] Validar parser com endereço sem número, com complemento, bairro e CEP em perfil Chrome de teste.
