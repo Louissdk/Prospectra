@@ -8,7 +8,7 @@ import {
 
 test('normalizes and merges deletion tombstones by identity and newest deletion time', () => {
   const merged = mergeDeletionTombstones(
-    [{id:'old',identityKey:'place:1',aliases:['place:1','phone:111'],deletedAt:'2026-11-01T10:00:00Z'}],
+    [{id:'old',identityKey:'place:ChIJ-1',aliases:['place:ChIJ-1','phone:111'],deletedAt:'2026-11-01T10:00:00Z'}],
     [{id:'new',identity_key:'place:1',aliases:['place:1','phone:222'],deleted_at:'2026-11-02T10:00:00Z'}]
   );
   assert.equal(merged.length,1);
@@ -19,10 +19,10 @@ test('normalizes and merges deletion tombstones by identity and newest deletion 
 
 test('tombstones remove stale remote leads but allow a genuinely newer re-created lead', () => {
   const tombstone=normalizeDeletionTombstone({
-    id:'deleted-1',identityKey:'place:1',aliases:['place:1','phone:111'],
+    id:'deleted-1',identityKey:'place:ChIJ-1',aliases:['place:ChIJ-1','phone:111'],
     deletedAt:'2026-11-05T10:00:00Z'
   });
-  const stale={id:'lead-old',identityKey:'place:1',placeId:'ChIJ-1',phone:'111',updatedAt:'2026-11-04T10:00:00Z'};
+  const stale={id:'lead-old',identityKey:'place:ChIJ-1',placeId:'ChIJ-1',phone:'111',updatedAt:'2026-11-04T10:00:00Z'};
   const recreated={...stale,id:'lead-new',updatedAt:'2026-11-06T10:00:00Z'};
   assert.deepEqual(applyDeletionTombstones([stale,recreated],[tombstone]),[recreated]);
   assert.deepEqual(pruneSupersededTombstones([recreated],[tombstone]),[]);
@@ -30,7 +30,7 @@ test('tombstones remove stale remote leads but allow a genuinely newer re-create
 
 test('builds PostgREST rows for active leads and soft deletions', () => {
   const rows=buildSupabaseSyncRows(
-    [{id:'lead-1',identityKey:'place:1',name:'Empresa',updatedAt:'2026-11-09T11:00:00Z'}],
+    [{id:'lead-1',identityKey:'place:ChIJ-1',name:'Empresa',updatedAt:'2026-11-09T11:00:00Z'}],
     [{id:'lead-2',identityKey:'place:2',aliases:['place:2'],deletedAt:'2026-11-09T12:00:00Z'}],
     'user-123'
   );
