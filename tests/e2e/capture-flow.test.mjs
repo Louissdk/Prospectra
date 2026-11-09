@@ -72,7 +72,7 @@ async function runFixture({ body, startMessage, simulateNavigation = false }) {
 
 test('simulates opening a Maps card, reading its detail and returning to results', async () => {
   const { result, sent } = await runFixture({
-    body: resultsMarkup,
+    body: '<main role="main">' + resultsMarkup + '</main>',
     simulateNavigation: true,
     startMessage: { type:'PROSPECTRA_CAPTURE_START',taskId:'fixture-success',mode:'visible',limit:1,minRating:0,searchTerm:'clínicas',city:'Guarulhos' }
   });

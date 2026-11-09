@@ -19,7 +19,7 @@ test('deduplicates by Maps URL and preserves richer fields', () => {
   const merged = mergeLeadRecords(existing, incoming);
   assert.equal(merged.length, 1);
   assert.equal(merged[0].id, 'lead-1');
-  assert.equal(merged[0].phone, '(11) 3333-4444');
+  assert.equal(merged[0].phone, '+55 (11) 3333-4444');
   assert.equal(merged[0].website, 'https://oficina.example');
   assert.deepEqual(merged[0].emails, ['contato@oficina.example']);
   assert.equal(merged[0].collectedAt, '2026-11-01T10:00:00.000Z');
