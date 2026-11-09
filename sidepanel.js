@@ -964,7 +964,8 @@ async function saveSheetsSettings() {
 async function syncGoogleSheets() {
   const raw=state.settings.sheetsUrl||'';
   if (!raw) {setStatus('Configure a URL do Apps Script antes de sincronizar.','warning');return;}
-  if (!leads.length) {setStatus('Não há leads para enviar.','warning');return;}
+  const deletions=Array.isArray(state.deletedLeadKeys)?state.deletedLeadKeys:[];
+  if (!leads.length && !deletions.length) {setStatus('Não há leads nem exclusões pendentes para enviar.','warning');return;}
   const token=String($('#sheetsToken').value||state.settings.sheetsToken||'').trim();
   if (!token) {setStatus('Informe o token obrigatório configurado nas Propriedades do Apps Script.','warning');return;}
   state.settings.sheetsToken=token;
@@ -975,29 +976,36 @@ async function syncGoogleSheets() {
   if (!granted) {setStatus('Permissão para acessar o Web App não concedida.','warning');return;}
   const batchSize=200;
   let sent=0;
+  let deleted=0;
+  const batchCount=Math.ceil(Math.max(leads.length,deletions.length)/batchSize);
   try {
-    for (let offset=0;offset<leads.length;offset+=batchSize) {
+    for (let batchIndex=0;batchIndex<batchCount;batchIndex+=1) {
+      const offset=batchIndex*batchSize;
       const batch=leads.slice(offset,offset+batchSize);
-      setStatus('Enviando lote '+(Math.floor(offset/batchSize)+1)+' de '+Math.ceil(leads.length/batchSize)+' para o Google Sheets…');
+      const deletedBatch=deletions.slice(offset,offset+batchSize);
+      if (!batch.length && !deletedBatch.length) continue;
+      setStatus('Enviando lote '+(batchIndex+1)+' de '+batchCount+' para o Google Sheets…');
       const response=await fetch(url.href,{
-        method:'POST',redirect:'follow',
+        method:'POST',redirect:'follow',credentials:'omit',
         headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify({
           action:'upsert',token,
-          source:'Prospectra',exportedAt:new Date().toISOString(),leads:batch
+          source:'Prospectra',exportedAt:new Date().toISOString(),
+          leads:batch,deletedLeadKeys:deletedBatch
         })
       });
-      const text=await response.text();
-      if (!response.ok) throw new Error('HTTP '+response.status+': '+text.slice(0,180));
+      const responseText=await response.text();
+      if (!response.ok) throw new Error('HTTP '+response.status+': '+responseText.slice(0,180));
       let result;
-      try {result=JSON.parse(text);} catch {throw new Error('O Apps Script não retornou JSON válido: '+text.slice(0,180));}
+      try {result=JSON.parse(responseText);} catch {throw new Error('O Apps Script não retornou JSON válido: '+responseText.slice(0,180));}
       if (!result?.ok) throw new Error(result?.error||'O Apps Script recusou o lote.');
       sent+=batch.length;
-      setProgress(sent,leads.length,'Google Sheets: '+sent+'/'+leads.length+' leads enviados');
+      deleted+=deletedBatch.length;
+      setProgress(sent+deleted,leads.length+deletions.length,'Google Sheets: '+sent+' leads e '+deleted+' exclusões processados');
     }
-    setStatus('Google Sheets atualizado: '+sent+' lead(s) enviados em lotes de até '+batchSize+'.','success');
+    setStatus('Google Sheets atualizado: '+sent+' lead(s) ativo(s) e '+deleted+' exclusão(ões) propagada(s).','success');
   } catch(error) {
-    setStatus('Google Sheets: '+(error?.message||'falha na integração')+'. '+sent+' de '+leads.length+' lead(s) foram confirmados; você pode reenviar a base com segurança.','error');
+    setStatus('Google Sheets: '+(error?.message||'falha na integração')+'. '+sent+' lead(s) e '+deleted+' exclusão(ões) foram confirmados; reenviar a base é seguro.','error');
   }
 }
 function normalizedSupabaseUrl() {

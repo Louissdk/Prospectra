@@ -25,8 +25,10 @@ function doPost(e) {
     if (!expected || received !== expected) {
       return output({ ok: false, error: 'Token inválido ou não configurado.' });
     }
-    if (!Array.isArray(payload.leads) || payload.leads.length > 200) {
-      return output({ ok: false, error: 'Lote inválido. Envie até 200 leads por requisição.' });
+    const leads = Array.isArray(payload.leads) ? payload.leads : [];
+    const deletedLeadKeys = Array.isArray(payload.deletedLeadKeys) ? payload.deletedLeadKeys : [];
+    if (leads.length > 200 || deletedLeadKeys.length > 200) {
+      return output({ ok: false, error: 'Lote inválido. Envie até 200 leads e 200 exclusões por requisição.' });
     }
 
     const headers = [
@@ -56,7 +58,7 @@ function doPost(e) {
       if (key) byIdentity.set(key, row);
     });
 
-    payload.leads.forEach(function(lead) {
+    leads.forEach(function(lead) {
       if (!lead || !lead.id) return;
       const social = lead.socialProfiles || {};
       const identityKey = String(lead.identityKey || lead.placeId || lead.mapsUrl || lead.id);
@@ -78,6 +80,11 @@ function doPost(e) {
       byIdentity.set(identityKey, row.map(safeCell));
     });
 
+    deletedLeadKeys.forEach(function(item) {
+      const identityKey = String(item && item.identityKey || '');
+      if (identityKey) byIdentity.delete(identityKey);
+    });
+
     const rows = Array.from(byIdentity.values());
     sheet.clearContents();
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
@@ -88,7 +95,7 @@ function doPost(e) {
     sheet.autoResizeColumns(1, headers.length);
     SpreadsheetApp.flush();
 
-    return output({ ok: true, received: payload.leads.length, total: rows.length });
+    return output({ ok: true, received: leads.length, deleted: deletedLeadKeys.length, total: rows.length });
   } catch (error) {
     return output({ ok: false, error: String(error && error.message || error) });
   }
@@ -136,7 +143,7 @@ Se sua configuração permitir acesso amplo, proteja a implantação com o token
 4. Salve as configurações.
 5. Clique em **Enviar leads** e conceda a permissão de host solicitada pelo Chrome.
 
-O Prospectra envia lotes de até 200 leads e verifica o JSON de resposta do Apps Script. Em caso de falha parcial, a mensagem informa quantos registros foram confirmados. Reenviar a base atualiza as linhas pela chave de identidade, evitando duplicatas na mesma planilha.
+O Prospectra envia lotes de até 200 leads e verifica o JSON de resposta do Apps Script. Em caso de falha parcial, a mensagem informa quantos registros foram confirmados. Reenviar a base atualiza as linhas pela chave de identidade, evitando duplicatas na mesma planilha. Exclusões locais são enviadas como tombstones e removidas da aba gerenciada pelo script; lotes de exclusões também são idempotentes.
 
 ## Segurança e limitações
 
@@ -144,6 +151,6 @@ O Prospectra envia lotes de até 200 leads e verifica o JSON de resposta do Apps
 - Não compartilhe o token nem a URL de implantação com pessoas que não devam acessar a integração.
 - A planilha e o Apps Script permanecem sob sua conta Google.
 - O Apps Script neutraliza conteúdo textual que comece com `=`, `+`, `-` ou `@` antes de gravar, prevenindo que nomes e outros dados sejam interpretados como fórmulas.
-- A aba Prospectra Leads é gerenciada pelo script. Não use essa aba para anotações manuais; crie outra aba para observações.
+- A aba Prospectra Leads é gerenciada pelo script. Leads removidos no Prospectra também são removidos dessa aba na próxima sincronização. Não use essa aba para anotações manuais; crie outra aba para observações.
 - A primeira sincronização após migrar uma planilha antiga pode deixar linhas duplicadas se os registros não possuírem IDs ou chaves de identidade correspondentes. Faça uma cópia da planilha antes de atualizar o script.
 - A comunicação entre o Chrome e Apps Script deve ser testada no seu próprio ambiente. Restrições de domínio, políticas organizacionais ou alterações no serviço podem impedir a chamada.

@@ -17,3 +17,12 @@ test('Apps Script expands narrow sheets and neutralizes formula-like strings', (
   assert.ok(docs.includes('sheet.insertColumnsAfter(sheet.getMaxColumns()'));
   assert.ok(docs.includes(String.raw`return /^[\s]*[=+\-@]/.test(value)`));
 });
+
+test('Google Sheets integration receives deletion tombstones and removes them by identity', async () => {
+  const panel = await readFile(new URL('../sidepanel.js', import.meta.url), 'utf8');
+  assert.match(panel,/deletedLeadKeys:deletedBatch/);
+  assert.match(panel,/const deletions=Array\.isArray\(state\.deletedLeadKeys\)/);
+  assert.match(docs,/const deletedLeadKeys = Array\.isArray\(payload\.deletedLeadKeys\)/);
+  assert.match(docs,/byIdentity\.delete\(identityKey\)/);
+  assert.match(docs,/deleted: deletedLeadKeys\.length/);
+});
