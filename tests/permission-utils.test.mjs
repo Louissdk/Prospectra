@@ -10,8 +10,8 @@ test('requests only public site origins plus DNS-over-HTTPS for MX lookup', () =
     {website:'http://127.0.0.1/admin'},
     {website:'javascript:alert(1)'}
   ]),[
-    'https://dns.google/*',
     'http://oficina.com.br/*',
+    'https://dns.google/*',
     'https://www.empresa.com.br/*'
   ]);
 });
