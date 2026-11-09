@@ -11,6 +11,7 @@ O Prospectra é uma extensão Chrome Manifest V3 dividida em quatro partes princ
 | sidepanel.js | Interface, CRM, fila de pesquisas, relatórios e integrações |
 | db.js | Inicialização, migração, persistência IndexedDB, backup e checkpoints |
 | sync-utils.js | Tombstones de exclusão, reconciliação de conflitos e linhas Supabase |
+| geo-utils.js | Validação de coordenadas, visualização proporcional e exportação KML/GeoJSON |
 | checkpoint-utils.js | Normalização e limites dos dados de retomada de coleta |
 | permission-utils.js | Origens públicas específicas solicitadas para enriquecimento, incluindo DNS/MX |
 | queue-utils.js | Classificação e resumo de pesquisas concluídas, parciais, interrompidas e com falha |
@@ -45,6 +46,7 @@ IndexedDB oferece mais capacidade e estrutura do que armazenar a base inteira em
 Campos importantes:
 
 - Identidade: id, placeId, mapsUrl.
+- Geolocalização: latitude, longitude e coordinatesSource, somente quando a URL da ficha fornece coordenadas exatas.
 - Empresa: name, category, categoryPath, address, addressParts, city.
 - Contatos: phone, phones, emails, emailTypes, whatsappUrl, socialProfiles.
 - Enriquecimento: websiteStatus, httpStatus, mxStatus, websiteMeta, CNPJ numérico/alfanumérico, openingHours.
@@ -87,3 +89,7 @@ A sincronização lê a nuvem em páginas de até 1.000 registros, com limite co
 - GitHub Actions executa verificação sintática, testes e validação do Manifest V3.
 
 Os testes usam DOM simulado e não garantem que os seletores continuem funcionando em todas as versões reais do Google Maps.
+
+## Cobertura geográfica
+
+O painel desenha uma visualização proporcional em latitude/longitude para leads com coordenadas extraídas da URL da ficha do Maps. Ela é um gráfico de pontos, não um mapa-base cartográfico. KML e GeoJSON exportam os pontos para Google Earth e ferramentas GIS. Leads sem coordenadas não recebem uma posição estimada a partir do centro da cidade.

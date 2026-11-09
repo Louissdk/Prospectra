@@ -59,6 +59,11 @@ Todas as alterações importantes do Prospectra são registradas neste arquivo.
 - Etiquetas, responsável comercial e modelos de mensagem.
 - Link WhatsApp com mensagem preenchida, sem envio automático.
 
+### Cobertura geográfica
+- Captura de latitude e longitude exatas quando disponíveis na URL da ficha do Maps.
+- Visualização proporcional por coordenadas, sem apresentar um mapa-base cartográfico.
+- Exportação KML e GeoJSON; os campos de coordenadas também ficam disponíveis em CSV e XLSX.
+
 ### Relatórios e integrações
 - Exportação CSV customizável, com chave de identidade, e presets básicos HubSpot, Pipedrive e Salesforce.
 - Importação de Excel XLSX, CSV e restauração de backup JSON.

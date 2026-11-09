@@ -50,3 +50,9 @@
 - [ ] Excluir um lead no dispositivo A, sincronizar e confirmar que ele não reaparece no dispositivo B.
 - [ ] Recriar o mesmo lead depois da exclusão e confirmar a regra de atualização mais recente.
 - [ ] Testar sincronização com tombstones e leads ativos próximos dos limites de 10.000 + 10.000.
+
+- [ ] Coletar empresas com URLs de ficha que contenham e que não contenham coordenadas e confirmar que somente as primeiras aparecem na visualização geográfica.
+- [ ] Abrir KML no Google Earth e GeoJSON em um visualizador GIS e confirmar os pontos em latitude/longitude corretos.
+- [ ] Confirmar que CSV e XLSX incluem latitude, longitude e origem das coordenadas.
+- [ ] Excluir um lead no dispositivo A, sincronizar e confirmar que ele não reaparece no dispositivo B.
+- [ ] Testar migração SQL de deleted_at em projeto Supabase de homologação.

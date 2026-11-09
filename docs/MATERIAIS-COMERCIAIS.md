@@ -68,3 +68,7 @@ Não foi definido preço nesta documentação. O preço deve ser validado com cl
 - [ ] Definir rotina de correções e distribuição de versões.
 - [ ] Confirmar que marca, imagens e dependências têm direitos de uso.
 - [ ] Validar com assessoria jurídica o contrato comercial e a política de dados.
+
+
+## Cobertura geográfica e formatos de saída
+A versão candidata oferece uma visualização proporcional dos leads com coordenadas exatas extraídas das fichas do Google Maps e exporta os pontos em KML e GeoJSON. Não inclui tiles de mapa nem geocodificação automática; empresas sem coordenadas permanecem fora do gráfico para não sugerir uma precisão inexistente.
