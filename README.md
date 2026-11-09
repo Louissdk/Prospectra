@@ -75,7 +75,7 @@ A versão 2.0.0 expande o produto para além da captura: inclui banco local Inde
 ### Integrações opcionais
 
 - **Google Sheets:** envio para um Web App próprio do Google Apps Script.
-- **Supabase:** autenticação e sincronização de leads entre dispositivos usando RLS, validação estrita da URL do projeto e paginação com contagem exata.
+- **Supabase:** autenticação e sincronização de leads entre dispositivos usando RLS, paginação com contagem exata, resolução de conflitos por atualização mais recente e propagação de exclusões por tombstones.
 - Não é necessário configurar essas integrações para usar a captura ou o CRM local.
 
 > **Importante:** o Prospectra lê a interface pública carregada no navegador. Ele não usa uma API oficial de dados do Google Maps, não garante que todos os resultados sejam apresentados e não contorna CAPTCHA, login, bloqueios, paywalls ou limites do serviço.
@@ -190,7 +190,7 @@ flowchart TD
 - A consulta MX indica se o domínio publica registros de recebimento de e-mail; não comprova a existência de uma caixa postal nem a entrega de mensagens.
 - A importação suporta XLSX, CSV e backup JSON. Arquivos XLSX protegidos por senha ou estruturas ZIP64 não são suportados.
 - A cobertura regional mostra a distribuição da base por cidade/região e fornece links para pesquisar no Maps; não é um mapa geográfico com coordenadas.
-- A sincronização Supabase não propaga exclusões de registros. Faça backup antes de operações de limpeza.
+- A sincronização Supabase limita a base local a 10.000 leads ativos e o conjunto remoto a 20.000 linhas entre leads e tombstones. A regra de conflito é última atualização vence; relógios dos dispositivos devem estar corretos.
 - Testes automatizados usam DOM simulado; eles não substituem testes manuais com uma sessão real do Google Maps.
 
 ## Privacidade e uso responsável

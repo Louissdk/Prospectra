@@ -40,13 +40,14 @@ A senha é enviada à API Auth para autenticação e não é salva pelo Prospect
 
 ## 4. Política de sincronização
 
-- A sincronização valida a URL HTTPS do projeto, baixa registros visíveis ao usuário autenticado pela RLS em páginas de 1.000 linhas e confere a contagem exata, com limite de 10.000 registros por sincronização.
-- O Prospectra mescla os registros locais e remotos por identidade comercial e mantém o ID local do registro consolidado.
-- A leitura remota é paginada em blocos de 1.000 linhas e limitada a 10.000 leads por sincronização nesta versão.
-- O resultado local é enviado em lotes de até 200 registros.
-- Campos CRM incluídos no objeto do lead acompanham a sincronização.
-- Exclusões não são propagadas nesta versão. Apagar um lead local não remove automaticamente uma cópia na nuvem.
-- Faça backup antes de sincronizar em dispositivos diferentes.
+- A leitura remota usa RLS, páginas de 1.000 linhas e contagem exata. O limite combinado é de 20.000 linhas: até 10.000 leads ativos e até 10.000 registros de exclusão.
+- A base local mantém o limite de 10.000 leads ativos. A sincronização não descarta silenciosamente registros acima dos limites: ela interrompe e informa o problema.
+- O conflito entre versões usa a data `updatedAt` mais recente como regra de última gravação vence. Listas como e-mails, telefones, etiquetas e atividades são mescladas; a regra depende de relógios dos dispositivos razoavelmente sincronizados.
+- Exclusões são propagadas como *tombstones* (`deleted_at`), não como remoções físicas. Isso impede que um lead apagado reapareça ao sincronizar outro dispositivo.
+- Se o registro for coletado novamente depois da exclusão, a atualização posterior pode reativá-lo.
+- O envio de leads e tombstones é feito em lotes de até 200 linhas.
+- Antes de usar a nova sincronização, execute novamente o SQL completo de `docs/supabase/schema.sql` no projeto existente para adicionar a coluna `deleted_at` e o índice.
+- Faça backup antes da primeira sincronização após atualizar o schema, especialmente quando houver vários dispositivos.
 
 ## 5. Segurança
 
@@ -62,5 +63,7 @@ A senha é enviada à API Auth para autenticação e não é salva pelo Prospect
 - **401:** sessão expirada, senha incorreta ou token inválido. Entre novamente.
 - **403:** políticas RLS ou permissões da tabela incorretas.
 - **404 / PGRST205:** a tabela não existe no projeto informado ou o schema cache ainda não foi atualizado.
+- **Coluna deleted_at ausente:** execute novamente o arquivo `docs/supabase/schema.sql` para aplicar a migração de exclusões.
+- **Conflitos de dados entre dispositivos:** o registro com `updatedAt` mais recente prevalece; confira relógio/data dos dispositivos e faça backup antes de sincronizar.
 - **Erro de rede:** confirme a Project URL, conectividade e permissão de host do Chrome.
 - **Conta criada sem sessão:** se confirmação de e-mail estiver habilitada, confirme o endereço e depois entre.

@@ -9,7 +9,8 @@ O Prospectra é uma extensão Chrome Manifest V3 dividida em quatro partes princ
 | content.js | Detecta resultados do Maps, abre fichas, coleta campos e reporta progresso |
 | service-worker.js | Persiste lotes, consulta sites públicos, verifica DNS/MX e agenda notificações |
 | sidepanel.js | Interface, CRM, fila de pesquisas, relatórios e integrações |
-| db.js | Inicialização, migração, persistência IndexedDB e checkpoints |
+| db.js | Inicialização, migração, persistência IndexedDB, backup e checkpoints |
+| sync-utils.js | Tombstones de exclusão, reconciliação de conflitos e linhas Supabase |
 | checkpoint-utils.js | Normalização e limites dos dados de retomada de coleta |
 | permission-utils.js | Origens públicas específicas solicitadas para enriquecimento, incluindo DNS/MX |
 | queue-utils.js | Classificação e resumo de pesquisas concluídas, parciais, interrompidas e com falha |
@@ -76,7 +77,7 @@ Envia um JSON com os leads para um Web App do Apps Script implantado pelo usuár
 ### Supabase
 Autentica com e-mail e senha na API Auth e usa a chave anon/public com RLS. A tabela guarda cada lead como JSONB por usuário. A senha não é salva; tokens de sessão ficam no banco local do navegador.
 
-A sincronização lê a nuvem em páginas de até 1.000 registros, com limite de 10.000 registros por sincronização, mescla os registros locais e remotos e envia atualizações em lotes de até 200. Exclusões não são propagadas nesta versão.
+A sincronização lê a nuvem em páginas de até 1.000 registros, com limite combinado de 20.000 linhas (até 10.000 leads ativos e 10.000 tombstones), mescla registros por identidade e usa a data updatedAt mais recente como regra de conflito. Listas e históricos são unidos. Exclusões são propagadas por deleted_at em lotes de até 200, sem remoção física da linha; uma coleta posterior mais nova pode reativar o lead. O resultado depende de relógios dos dispositivos sincronizados.
 
 ## Testes
 

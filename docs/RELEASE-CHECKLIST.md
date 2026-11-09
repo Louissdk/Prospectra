@@ -45,3 +45,8 @@
 - [ ] Confirmar que redirecionamentos para outro domínio, IP privado e downgrade de HTTPS são bloqueados.
 - [ ] Confirmar que a fila exibe contagem correta de concluídas, parciais, interrompidas e com falha.
 - [ ] Validar parser com endereço sem número, com complemento, bairro e CEP em perfil Chrome de teste.
+
+- [ ] Reexecutar o schema SQL Supabase em projeto de teste e confirmar a coluna deleted_at.
+- [ ] Excluir um lead no dispositivo A, sincronizar e confirmar que ele não reaparece no dispositivo B.
+- [ ] Recriar o mesmo lead depois da exclusão e confirmar a regra de atualização mais recente.
+- [ ] Testar sincronização com tombstones e leads ativos próximos dos limites de 10.000 + 10.000.

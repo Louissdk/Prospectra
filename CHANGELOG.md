@@ -9,6 +9,8 @@ Todas as alterações importantes do Prospectra são registradas neste arquivo.
 - Permissão do DNS-over-HTTPS incluída no fluxo de enriquecimento e MX.
 - Redirecionamentos de sites validados manualmente, bloqueando hosts externos, destinos privados e downgrade de HTTPS.
 - Resultado da fila classificado como concluído, parcial, interrompido ou com falha, evitando mensagens de sucesso enganosas.
+- Exclusões individuais propagadas entre dispositivos por tombstones Supabase; backups mantêm o histórico para impedir reaparecimento de leads apagados.
+- Conflitos entre dispositivos passam a respeitar o registro com updatedAt mais recente, preservando a união de atividades, etiquetas, contatos e histórico.
 - Parser de endereços melhorado para rua, número, complemento, bairro, cidade, UF e CEP.
 
 
@@ -75,7 +77,7 @@ Todas as alterações importantes do Prospectra são registradas neste arquivo.
 
 ### Limitações desta versão
 - O parser XLSX cobre planilhas convencionais com strings compartilhadas ou inline; arquivos criptografados/ZIP64 não são suportados.
-- A integração Supabase sincroniza leads e campos do CRM, mas não propaga exclusões.
+- A integração Supabase sincroniza até 10.000 leads ativos e até 10.000 tombstones de exclusão por usuário; exige a migração SQL da coluna deleted_at.
 - O Google Sheets requer implantação e configuração próprias do Apps Script.
 - Testes simulados não equivalem a uma coleta real no Google Maps.
 
