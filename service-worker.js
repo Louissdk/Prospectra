@@ -1,4 +1,5 @@
 import { extractContactLinks, extractEmails, isPublicHttpUrl, isSafeSameSiteRedirect } from './contact-utils.js';
+import { readLimitedTextBody } from './http-utils.js';
 import { extractCnpj, extractPhones, extractPublicProfiles, classifyEmail, isDoNotContact } from './crm-utils.js';
 import { mergeLeadRecords } from './capture-utils.js';
 import { loadAppState, saveAppState, saveLeadBatch, saveCaptureCheckpoint, clearCaptureCheckpoint } from './db.js';
@@ -55,28 +56,6 @@ chrome.notifications?.onClicked?.addListener(async () => {
   }
 });
 
-async function readLimitedBody(response, maxBytes = 1_200_000) {
-  const reader = response.body?.getReader();
-  if (!reader) return '';
-  const chunks = [];
-  let size = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > maxBytes) {
-        await reader.cancel();
-        break;
-      }
-      chunks.push(value);
-    }
-  } finally { try { reader.releaseLock(); } catch {} }
-  const merged = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
-  let offset = 0;
-  for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.length; }
-  return new TextDecoder('utf-8', { fatal: false }).decode(merged);
-}
 async function fetchPage(url, timeoutMs = 10000) {
   if (!isPublicHttpUrl(url)) throw new Error('Endereço bloqueado por segurança.');
   const controller = new AbortController();
@@ -114,7 +93,7 @@ async function fetchPage(url, timeoutMs = 10000) {
     if (contentType && !/(text\/html|application\/xhtml\+xml)/i.test(contentType)) {
       throw new Error('O endereço não retornou uma página HTML.');
     }
-    const html = await readLimitedBody(response);
+    const html = await readLimitedTextBody(response);
     return { html, finalUrl: response.url || currentUrl, status: response.status, ok: response.ok, contentType };
   } finally { clearTimeout(timeout); }
 }

@@ -19,6 +19,7 @@ O Prospectra é uma extensão Chrome Manifest V3 dividida em quatro partes princ
 | crm-utils.js | Normalização, score, Place ID, endereço, telefone, CNPJ e templates |
 | capture-utils.js | Deduplicação, mesclagem e resumo da coleta |
 | contact-utils.js | E-mails, URLs públicas, telefones, WhatsApp e CSV |
+| http-utils.js | Leitura HTTP por streaming com limite rígido de bytes e cancelamento explícito |
 | workbook.js | Geração do arquivo Excel XLSX |
 | spreadsheet-import.js | Leitura de XLSX via diretório ZIP, relações do workbook e shared strings |
 
@@ -68,7 +69,7 @@ A mesclagem preserva dados preenchidos, e-mails, telefones, etiquetas, atividade
 
 ## Enriquecimento
 
-O service worker valida URLs HTTP/HTTPS, limita tempo e tamanho de respostas, valida manualmente cada redirecionamento e bloqueia domínios externos, endereços privados e downgrade de HTTPS. A permissão DNS/MX é solicitada junto com as origens dos sites somente em uma ação explícita de enriquecimento. O service worker não executa scripts do site.
+O service worker valida URLs HTTP/HTTPS, limita tempo e tamanho de respostas com cancelamento explícito ao ultrapassar 1,2 MB, valida manualmente cada redirecionamento e bloqueia domínios externos, endereços privados e downgrade de HTTPS. A permissão DNS/MX é solicitada junto com as origens dos sites somente em uma ação explícita de enriquecimento. O service worker não executa scripts do site.
 
 Os dados encontrados recebem origem e nível de confiança quando possível. E-mail e telefone encontrados no site são diferenciados dos campos lidos diretamente no Maps.
 
