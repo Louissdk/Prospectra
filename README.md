@@ -189,7 +189,7 @@ flowchart TD
 - A busca de contatos depende de dados publicados nos sites. Alguns sites bloqueiam requisições ou renderizam conteúdo somente via JavaScript.
 - A consulta MX indica se o domínio publica registros de recebimento de e-mail; não comprova a existência de uma caixa postal nem a entrega de mensagens.
 - A importação suporta XLSX, CSV e backup JSON. Arquivos XLSX protegidos por senha ou estruturas ZIP64 não são suportados.
-- A cobertura regional mostra a distribuição da base por cidade/região e fornece links para pesquisar no Maps; não é um mapa geográfico com coordenadas.
+- A cobertura mostra a distribuição por cidade e uma visualização proporcional de leads com coordenadas exatas extraídas das fichas; KML e GeoJSON podem ser exportados. A visualização é um gráfico de coordenadas, não um mapa-base cartográfico.
 - A sincronização Supabase limita a base local a 10.000 leads ativos e o conjunto remoto a 20.000 linhas entre leads e tombstones. A regra de conflito é última atualização vence; relógios dos dispositivos devem estar corretos.
 - Testes automatizados usam DOM simulado; eles não substituem testes manuais com uma sessão real do Google Maps.
 

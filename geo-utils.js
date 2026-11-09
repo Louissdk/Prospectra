@@ -86,16 +86,16 @@ export function buildCoverageSvg(leads = []) {
   const maxX = Math.max(...projected.map((point) => point.xValue));
   const minY = Math.min(...projected.map((point) => point.yValue));
   const maxY = Math.max(...projected.map((point) => point.yValue));
-  const spanX = maxX - minX || 1;
-  const spanY = maxY - minY || 1;
+  const rangeX = maxX - minX;
+  const rangeY = maxY - minY;
   const innerW = width - padding * 2;
   const innerH = height - padding * 2;
   const sample = projected.length > 1500
     ? projected.filter((_, index) => index % Math.ceil(projected.length / 1500) === 0).slice(0,1500)
     : projected;
   const dots = sample.map(({lead,xValue,yValue}) => {
-    const x = padding + ((xValue - minX) / spanX) * innerW;
-    const y = height - padding - ((yValue - minY) / spanY) * innerH;
+    const x = rangeX > 0 ? padding + ((xValue - minX) / rangeX) * innerW : width / 2;
+    const y = rangeY > 0 ? height - padding - ((yValue - minY) / rangeY) * innerH : height / 2;
     const title = [lead.name,lead.city,lead.address].filter(Boolean).join(' · ');
     return '<circle class="coverage-dot" cx="' + x.toFixed(2) + '" cy="' + y.toFixed(2) + '" r="7"><title>' + svgEscape(title) + '</title></circle>';
   }).join('');

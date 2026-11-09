@@ -36,3 +36,14 @@ test('renders an accessible proportional coverage SVG with escaped labels', () =
   assert.match(svg,/Latitude:/);
   assert.equal(buildCoverageSvg([{name:'Sem coordenadas'}]),'');
 });
+
+test('centers points when all records share one longitude or latitude', () => {
+  const svg=buildCoverageSvg([
+    {name:'A',latitude:-23.5,longitude:-46.6},
+    {name:'B',latitude:-23.5,longitude:-46.7}
+  ]);
+  assert.match(svg,/cy="220\.00"/);
+  const single=buildCoverageSvg([{name:'Único',latitude:-23.5,longitude:-46.6}]);
+  assert.match(single,/cx="500\.00"/);
+  assert.match(single,/cy="220\.00"/);
+});
