@@ -196,7 +196,7 @@ flowchart TD
 - A importação suporta XLSX, CSV e backup JSON. Arquivos XLSX protegidos por senha ou estruturas ZIP64 não são suportados.
 - A cobertura mostra a distribuição por cidade e uma visualização proporcional de leads com coordenadas exatas extraídas das fichas; KML e GeoJSON podem ser exportados. A visualização é um gráfico de coordenadas, não um mapa-base cartográfico.
 - A sincronização Supabase limita a base local a 10.000 leads ativos e o conjunto remoto a 20.000 linhas entre leads e tombstones. A regra de conflito é última atualização vence; relógios dos dispositivos devem estar corretos.
-- Testes automatizados usam DOM simulado e Chromium com fixture; eles não substituem uma sessão real do Google Maps. O CI também executa o schema/RLS em PostgreSQL 17 descartável, mas a autenticação e a Data API ainda precisam de homologação no projeto Supabase escolhido.
+- Testes automatizados usam DOM simulado e Chromium com fixture; eles não substituem uma sessão real do Google Maps. O CI executa schema/RLS em PostgreSQL 17 descartável e exercita a Data API em PostgREST 16.5 com JWTs de teste. Isso não substitui a homologação com Supabase Auth, URL/chave e Data API do projeto real.
 
 ## Privacidade e uso responsável
 
