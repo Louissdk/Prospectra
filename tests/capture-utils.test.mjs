@@ -109,3 +109,21 @@ test('still merges a record without Place ID into its matching identified branch
   assert.equal(merged[0].id,'identified');
   assert.equal(merged[0].website,'https://rede.example');
 });
+
+
+test('a newer CRM update can remove a do-not-contact flag without stale merges restoring it', () => {
+  const olderBlocked = {
+    id:'lead-dnc', name:'Empresa DNC', placeId:'ChIJ-DNC',
+    doNotContact:true, updatedAt:'2026-11-09T10:00:00.000Z'
+  };
+  const newerUnblocked = {
+    ...olderBlocked, doNotContact:false, updatedAt:'2026-11-09T11:00:00.000Z'
+  };
+  const merged = mergeLeadRecords([olderBlocked],[newerUnblocked]);
+  assert.equal(merged.length,1);
+  assert.equal(merged[0].doNotContact,false);
+
+  const staleUnblocked = { ...olderBlocked, doNotContact:false, updatedAt:'2026-11-09T09:00:00.000Z' };
+  const mergedAgain = mergeLeadRecords([olderBlocked],[staleUnblocked]);
+  assert.equal(mergedAgain[0].doNotContact,true);
+});

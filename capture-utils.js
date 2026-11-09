@@ -77,7 +77,8 @@ function mergeLeadRecord(previous, incoming) {
   merged.stage = newer.stage || older.stage || 'new';
   merged.owner = newer.owner || older.owner || '';
   merged.nextFollowUp = newer.nextFollowUp || older.nextFollowUp || '';
-  merged.doNotContact = Boolean(incoming.doNotContact || previous.doNotContact);
+  // The newest full record is authoritative: an explicit false must clear an older DNC flag.
+  merged.doNotContact = Boolean(newer.doNotContact);
   merged.closedStatus = newer.closedStatus && newer.closedStatus !== 'unknown' ? newer.closedStatus : older.closedStatus || 'unknown';
   merged.collectedAt = previous.collectedAt || incoming.collectedAt || new Date().toISOString();
   merged.updatedAt = newer.updatedAt || newer.collectedAt || older.updatedAt || older.collectedAt || new Date().toISOString();

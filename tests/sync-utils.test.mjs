@@ -71,3 +71,41 @@ test('a deletion tombstone never removes a different branch sharing name and pho
   const tombstone=createDeletionTombstone(deletedBranch,'2026-11-09T11:00:00Z');
   assert.deepEqual(applyDeletionTombstones([deletedBranch,otherBranch],[tombstone]),[otherBranch]);
 });
+
+
+test('tombstone identities do not collide when long keys share the same prefix', () => {
+  const prefix='url:'+'x'.repeat(180);
+  const rows=buildSupabaseSyncRows([],[
+    {identityKey:prefix+'A',deletedAt:'2026-11-09T10:00:00Z'},
+    {identityKey:prefix+'B',deletedAt:'2026-11-09T11:00:00Z'}
+  ],'user-123');
+  assert.equal(rows.length,2);
+  assert.notEqual(rows[0].id,rows[1].id);
+  assert.equal(rows[0].id,'deleted:'+rows[0].identity_key);
+  assert.equal(rows[1].id,'deleted:'+rows[1].identity_key);
+});
+
+test('applies and prunes the maximum tombstone history without pairwise scans', () => {
+  const size=MAX_DELETION_TOMBSTONES;
+  const leads=Array.from({length:size},(_,index)=>({
+    id:'lead-'+index,
+    identityKey:'place:active-'+index,
+    placeId:'active-'+index,
+    name:'Ativo '+index,
+    updatedAt:'2026-11-09T12:00:00.000Z'
+  }));
+  const tombstones=Array.from({length:size},(_,index)=>({
+    id:'deleted-'+index,
+    identityKey:'place:deleted-'+index,
+    aliases:['place:deleted-'+index],
+    deletedAt:'2026-11-09T10:00:00.000Z'
+  }));
+  const started=performance.now();
+  const filtered=applyDeletionTombstones(leads,tombstones);
+  const pruned=pruneSupersededTombstones(leads,tombstones);
+  const elapsed=performance.now()-started;
+
+  assert.equal(filtered.length,size);
+  assert.equal(pruned.length,size);
+  assert.ok(elapsed<5000,'10.000 leads + 10.000 tombstones devem ser indexados, não comparados em pares; levou '+Math.round(elapsed)+' ms.');
+});

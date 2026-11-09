@@ -54,31 +54,88 @@ export function mergeDeletionTombstones(...groups) {
   return [...byIdentity.values()].sort((a, b) => Date.parse(b.deletedAt) - Date.parse(a.deletedAt));
 }
 
-function matchesTombstone(lead, tombstone) {
-  const leadAliases = captureLeadAliases(lead);
-  const leadPlace = leadAliases.find((alias) => alias.startsWith('place:') && !alias.startsWith('place:maps-path:'));
-  const tombstonePlace = tombstone.aliases.find((alias) => alias.startsWith('place:') && !alias.startsWith('place:maps-path:'));
-  if (leadPlace && tombstonePlace && leadPlace !== tombstonePlace) return false;
-  const aliases = new Set(leadAliases);
+function strongPlaceAlias(aliases = []) {
+  return aliases.find((alias) => alias.startsWith('place:') && !alias.startsWith('place:maps-path:')) || '';
+}
+
+function addIndexValue(index, key, tombstone) {
+  if (!key) return;
+  let bucket = index.get(key);
+  if (!bucket) {
+    bucket = new Set();
+    index.set(key, bucket);
+  }
+  bucket.add(tombstone);
+}
+
+function buildTombstoneIndex(tombstones) {
+  const byStrongPlace = new Map();
+  const weakByAlias = new Map();
+  const byAlias = new Map();
+  const deletedAt = new Map();
+
+  for (const tombstone of tombstones) {
+    const strongPlace = strongPlaceAlias(tombstone.aliases);
+    deletedAt.set(tombstone, Date.parse(tombstone.deletedAt) || 0);
+    for (const alias of tombstone.aliases) {
+      addIndexValue(byAlias, alias, tombstone);
+      if (!strongPlace) addIndexValue(weakByAlias, alias, tombstone);
+    }
+    if (strongPlace) addIndexValue(byStrongPlace, strongPlace, tombstone);
+  }
+  return { byStrongPlace, weakByAlias, byAlias, deletedAt };
+}
+
+function findTombstoneCandidates(lead, index) {
+  const aliases = captureLeadAliases(lead);
   const leadIdentity = String(lead.identityKey || '').trim();
-  if (leadIdentity) aliases.add(leadIdentity);
-  return tombstone.aliases.some((alias) => aliases.has(alias)) || (leadIdentity && leadIdentity === tombstone.identityKey);
+  if (leadIdentity && !aliases.includes(leadIdentity)) aliases.push(leadIdentity);
+
+  const strongPlace = strongPlaceAlias(aliases);
+  const candidates = new Set();
+  const collect = (bucket) => {
+    if (bucket) for (const tombstone of bucket) candidates.add(tombstone);
+  };
+
+  if (strongPlace) {
+    collect(index.byStrongPlace.get(strongPlace));
+    for (const alias of aliases) collect(index.weakByAlias.get(alias));
+  } else {
+    for (const alias of aliases) collect(index.byAlias.get(alias));
+  }
+  return candidates;
 }
 
 export function applyDeletionTombstones(leads = [], tombstones = []) {
+  const safeLeads = Array.isArray(leads) ? leads : [];
   const normalized = mergeDeletionTombstones(tombstones);
-  return (Array.isArray(leads) ? leads : []).filter((lead) => {
+  if (!normalized.length || !safeLeads.length) return safeLeads;
+
+  const index = buildTombstoneIndex(normalized);
+  return safeLeads.filter((lead) => {
     const updatedAt = Date.parse(lead.updatedAt || lead.collectedAt || '') || 0;
-    return !normalized.some((tombstone) => matchesTombstone(lead, tombstone) && Date.parse(tombstone.deletedAt) >= updatedAt);
+    for (const tombstone of findTombstoneCandidates(lead, index)) {
+      if (index.deletedAt.get(tombstone) >= updatedAt) return false;
+    }
+    return true;
   });
 }
 
 export function pruneSupersededTombstones(leads = [], tombstones = []) {
+  const safeLeads = Array.isArray(leads) ? leads : [];
   const normalized = mergeDeletionTombstones(tombstones);
-  return normalized.filter((tombstone) => !(Array.isArray(leads) ? leads : []).some((lead) => {
+  if (!normalized.length || !safeLeads.length) return normalized;
+
+  const index = buildTombstoneIndex(normalized);
+  const superseded = new Set();
+  for (const lead of safeLeads) {
     const updatedAt = Date.parse(lead.updatedAt || lead.collectedAt || '') || 0;
-    return matchesTombstone(lead, tombstone) && updatedAt > Date.parse(tombstone.deletedAt);
-  }));
+    if (!updatedAt) continue;
+    for (const tombstone of findTombstoneCandidates(lead, index)) {
+      if (updatedAt > index.deletedAt.get(tombstone)) superseded.add(tombstone.identityKey);
+    }
+  }
+  return normalized.filter((tombstone) => !superseded.has(tombstone.identityKey));
 }
 
 export function buildSupabaseSyncRows(leads = [], tombstones = [], userId = '') {
@@ -93,7 +150,8 @@ export function buildSupabaseSyncRows(leads = [], tombstones = [], userId = '') 
     deleted_at: null
   })).filter((row) => row.id && row.identity_key);
   const deleted = mergeDeletionTombstones(tombstones).map((item) => ({
-    id: item.id || ('deleted-' + encodeURIComponent(item.identityKey).slice(0, 120)),
+    // Preserve the full identity to avoid collisions between long, similar keys.
+    id: item.id || ('deleted:' + item.identityKey),
     identity_key: item.identityKey,
     user_id: ownerId,
     payload: { deleted: true, identityKey: item.identityKey, aliases: item.aliases, deletedAt: item.deletedAt },
