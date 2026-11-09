@@ -235,7 +235,7 @@ export function normalizeLeadRecord(lead = {}, owner = '') {
     owner: String(lead.owner || owner || ''),
     activities: Array.isArray(lead.activities) ? lead.activities : [],
     nextFollowUp: lead.nextFollowUp || '',
-    doNotContact: !!lead.doNotContact,
+    doNotContact: typeof lead.doNotContact === 'boolean' ? lead.doNotContact : undefined,
     closedStatus: lead.closedStatus || 'unknown',
     qualityScore: Number.isFinite(Number(lead.qualityScore)) ? Number(lead.qualityScore) : qualityScore({ ...lead, phones, emails }),
     collectedAt: lead.collectedAt || new Date().toISOString(),

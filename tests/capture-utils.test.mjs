@@ -127,3 +127,18 @@ test('a newer CRM update can remove a do-not-contact flag without stale merges r
   const mergedAgain = mergeLeadRecords([olderBlocked],[staleUnblocked]);
   assert.equal(mergedAgain[0].doNotContact,true);
 });
+
+
+test('a newer Maps capture without CRM fields does not clear a saved do-not-contact flag', () => {
+  const blocked = {
+    id:'lead-dnc-2', name:'Empresa DNC 2', placeId:'ChIJ-DNC-2',
+    doNotContact:true, updatedAt:'2026-11-09T10:00:00.000Z'
+  };
+  const freshMapsCapture = {
+    id:'lead-dnc-2-new', name:'Empresa DNC 2', placeId:'ChIJ-DNC-2',
+    phone:'(11) 3333-4444', updatedAt:'2026-11-09T12:00:00.000Z'
+  };
+  const merged = mergeLeadRecords([blocked],[freshMapsCapture]);
+  assert.equal(merged.length,1);
+  assert.equal(merged[0].doNotContact,true);
+});
