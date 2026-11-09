@@ -8,7 +8,6 @@ import {
 } from './crm-utils.js';
 import { loadAppState, saveAppState, createBackup, validateBackup, loadCaptureCheckpoint } from './db.js';
 import { normalizeSupabaseProjectUrl, parsePostgrestTotal, buildRangeHeader, isGoogleMapsUrl } from './cloud-utils.js';
-import { enrichmentPermissionOrigins } from './permission-utils.js';
 
 const $ = (selector) => document.querySelector(selector);
 const PAGE_SIZE = 50;
@@ -525,14 +524,15 @@ function createCaptureWaiter(taskId) {
   armCommunication();armProgress();
   return {promise,cancel:cleanup};
 }
-async function requestEnrichmentPermission(items=[],{allowPrompt=true}={}) {
-  const origins=enrichmentPermissionOrigins(items);
+async function requestEnrichmentPermission(items=[]) {
+  const origins=[...new Set((Array.isArray(items)?items:[]).map((item)=>{
+    try {
+      const url=new URL(item.website||'');
+      return ['http:','https:'].includes(url.protocol) ? url.origin+'/*' : '';
+    } catch { return ''; }
+  }).filter(Boolean))];
   if (!origins.length) return false;
-  // O pedido precisa acontecer diretamente no clique do usuário. No fluxo pós-coleta,
-  // apenas consultamos permissões existentes e adiamos o restante para o botão manual.
-  return allowPrompt
-    ? chrome.permissions.request({origins})
-    : chrome.permissions.contains({origins});
+  return chrome.permissions.request({origins});
 }
 async function enrichLeads(items,{force=false}={}) {
   const targets=items.filter((item)=>item.website && !item.emails?.length && (force || !item.enrichedAt || item.emailStatus==='pending' || item.websiteStatus==='unknown'));
@@ -650,11 +650,9 @@ async function runCapture(tab,params={}) {
     setStatus(status,summary.partial?'warning':'success');
     if (params.enrich && fresh.length) {
       const targets=fresh.map((item)=>leads.find((lead)=>lead.placeId===item.placeId || lead.mapsUrl===item.mapsUrl)||item);
-      // A coleta pode levar minutos. Não tentamos abrir um pedido de permissão
-      // depois que a ativação do clique inicial já expirou.
-      const granted=await requestEnrichmentPermission(targets,{allowPrompt:false});
+      const granted=await requestEnrichmentPermission(targets);
       if (!granted) {
-        setStatus(status+' Enriquecimento adiado: abra Leads e clique em "Enriquecer contatos pendentes" para autorizar os sites.',summary.partial?'warning':'success');
+        setStatus(status+' Enriquecimento não executado: permissão para os sites não concedida.',summary.partial?'warning':'success');
       } else {
         const enriched=await enrichLeads(targets);
         setStatus(status+' Enriquecimento: '+enriched.found+' empresa(s) com e-mail, '+enriched.checked+' site(s) consultado(s).',summary.partial?'warning':'success');

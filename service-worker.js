@@ -1,4 +1,4 @@
-import { extractContactLinks, extractEmails, isPublicHttpUrl } from './contact-utils.js';
+import { extractContactLinks, extractEmails, isPublicHttpUrl, isSafeSameSiteRedirect } from './contact-utils.js';
 import { extractCnpj, extractPhones, extractPublicProfiles, classifyEmail, isDoNotContact } from './crm-utils.js';
 import { mergeLeadRecords } from './capture-utils.js';
 import { loadAppState, saveAppState, saveLeadBatch, saveCaptureCheckpoint, clearCaptureCheckpoint } from './db.js';
@@ -82,18 +82,40 @@ async function fetchPage(url, timeoutMs = 10000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, {
-      method: 'GET', redirect: 'follow', credentials: 'omit', cache: 'no-store',
-      signal: controller.signal,
-      headers: { Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5' }
-    });
-    if (!isPublicHttpUrl(response.url || url)) throw new Error('Redirecionamento para endereço não permitido.');
+    let currentUrl = new URL(url).href;
+    let response = null;
+    for (let redirects = 0; redirects <= 5; redirects += 1) {
+      if (!isPublicHttpUrl(currentUrl)) throw new Error('Redirecionamento para endereço não permitido.');
+      response = await fetch(currentUrl, {
+        method: 'GET', redirect: 'manual', credentials: 'omit', cache: 'no-store',
+        signal: controller.signal,
+        headers: { Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5' }
+      });
+      if (response.type === 'opaqueredirect') {
+        throw new Error('O redirecionamento não pôde ser validado pelo navegador e foi bloqueado por segurança.');
+      }
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) throw new Error('O site retornou um redirecionamento sem destino legível.');
+        const nextUrl = new URL(location, currentUrl).href;
+        if (!isPublicHttpUrl(nextUrl) || !isSafeSameSiteRedirect(currentUrl, nextUrl)) {
+          throw new Error('Redirecionamento para outro domínio bloqueado. Confirme o endereço do site antes de enriquecer.');
+        }
+        if (redirects === 5) throw new Error('O site excedeu o limite de cinco redirecionamentos.');
+        currentUrl = nextUrl;
+        continue;
+      }
+      break;
+    }
+    if (!response || !isPublicHttpUrl(response.url || currentUrl)) {
+      throw new Error('O endereço final não passou pela validação de segurança.');
+    }
     const contentType = response.headers.get('content-type') || '';
     if (contentType && !/(text\/html|application\/xhtml\+xml)/i.test(contentType)) {
       throw new Error('O endereço não retornou uma página HTML.');
     }
     const html = await readLimitedBody(response);
-    return { html, finalUrl: response.url || url, status: response.status, ok: response.ok, contentType };
+    return { html, finalUrl: response.url || currentUrl, status: response.status, ok: response.ok, contentType };
   } finally { clearTimeout(timeout); }
 }
 function parseStructuredBusinessData(html = '') {
