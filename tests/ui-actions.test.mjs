@@ -69,7 +69,7 @@ test('keeps collection buttons locked until Maps readiness is confirmed', async 
   assert.match(source,/function mapsModeReady\(mode\)/);
   assert.match(source,/mapsReadinessState\.status !== 'ready'/);
   assert.match(source,/PROSPECTRA_MAPS_READINESS/);
-  assert.match(source,/Pesquisa pronta para coleta/);
+  assert.match(source,/Pronto para iniciar a coleta/);
 });
 
 test('the Maps search action waits for detected business cards instead of reporting immediate success', () => {
