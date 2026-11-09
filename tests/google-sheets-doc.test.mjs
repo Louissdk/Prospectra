@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 
 const docs = await readFile(new URL('../docs/integrations/google-sheets.md', import.meta.url), 'utf8');
@@ -25,4 +26,15 @@ test('Google Sheets integration receives deletion tombstones and removes them by
   assert.match(docs,/const deletedLeadKeys = Array\.isArray\(payload\.deletedLeadKeys\)/);
   assert.match(docs,/byIdentity\.delete\(identityKey\)/);
   assert.match(docs,/deleted: deletedLeadKeys\.length/);
+});
+
+
+test('Apps Script serializes read-modify-write requests and validates the action', () => {
+  const match = docs.match(/~~~javascript\\n([\\s\\S]*?)\\n~~~/);
+  assert.ok(match, 'O exemplo completo do Apps Script deve existir.');
+  assert.doesNotThrow(() => new vm.Script(match[1]), 'O Apps Script deve ter sintaxe JavaScript válida.');
+  assert.match(match[1], /LockService\\.getScriptLock\\(\\)/);
+  assert.match(match[1], /lock\\.waitLock\\(30000\\)/);
+  assert.match(match[1], /lock\\.releaseLock\\(\\)/);
+  assert.match(match[1], /payload\\.action !== 'upsert'/);
 });

@@ -20,6 +20,22 @@ A sincronização opcional permite compartilhar a base de leads entre instalaç�
 4. Execute o SQL.
 5. Confirme que a tabela prospectra_leads existe e que RLS está habilitado.
 
+### Acesso pela Data API
+
+Em projetos Supabase atualizados, uma tabela recém-criada pode existir no PostgreSQL sem estar acessível pela Data API. O schema deste repositório inclui um grant explícito para `authenticated`:
+
+```sql
+grant select, insert, update, delete on public.prospectra_leads to authenticated;
+```
+
+Esse grant já faz parte de `docs/supabase/schema.sql`; execute o arquivo completo. No painel, confirme que a Data API está habilitada e que o schema `public` está entre os schemas expostos. Não conceda acesso à role `anon` e nunca use `service_role` na extensão. As políticas RLS continuam limitando cada usuário às próprias linhas.
+
+Se o PostgREST continuar retornando `PGRST205` ou não reconhecer a tabela depois da execução do SQL, confirme o projeto e o schema selecionados e atualize o cache do PostgREST pelo SQL Editor:
+
+```sql
+notify pgrst, 'reload schema';
+```
+
 ## 2. Configurar Auth
 
 1. Abra Authentication → Providers.

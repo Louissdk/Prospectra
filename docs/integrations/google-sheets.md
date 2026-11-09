@@ -16,12 +16,21 @@ O Prospectra pode enviar os leads para uma planilha usando um Web App do Google 
 const SHEET_NAME = 'Prospectra Leads';
 
 function doPost(e) {
+  const lock = LockService.getScriptLock();
+  let lockAcquired = false;
   try {
+    // Serializa o ciclo ler → alterar → regravar para evitar perda em chamadas simultâneas.
+    lock.waitLock(30000);
+    lockAcquired = true;
+
     const payload = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     const expected = PropertiesService.getScriptProperties().getProperty('PROSPECTRA_TOKEN');
     const received = String(payload.token || '');
     delete payload.token;
 
+    if (payload.action !== 'upsert') {
+      return output({ ok: false, error: 'Ação inválida.' });
+    }
     if (!expected || received !== expected) {
       return output({ ok: false, error: 'Token inválido ou não configurado.' });
     }
@@ -98,6 +107,10 @@ function doPost(e) {
     return output({ ok: true, received: leads.length, deleted: deletedLeadKeys.length, total: rows.length });
   } catch (error) {
     return output({ ok: false, error: String(error && error.message || error) });
+  } finally {
+    if (lockAcquired) {
+      try { lock.releaseLock(); } catch (releaseError) { console.error(releaseError); }
+    }
   }
 }
 
@@ -143,7 +156,7 @@ Se sua configuração permitir acesso amplo, proteja a implantação com o token
 4. Salve as configurações.
 5. Clique em **Enviar leads** e conceda a permissão de host solicitada pelo Chrome.
 
-O Prospectra envia lotes de até 200 leads e verifica o JSON de resposta do Apps Script. Em caso de falha parcial, a mensagem informa quantos registros foram confirmados. Reenviar a base atualiza as linhas pela chave de identidade, evitando duplicatas na mesma planilha. Exclusões locais são enviadas como tombstones e removidas da aba gerenciada pelo script; lotes de exclusões também são idempotentes.
+O Prospectra envia lotes de até 200 leads e verifica o JSON de resposta do Apps Script. O script usa um bloqueio para serializar cada atualização e proteger o ciclo de leitura e gravação contra chamadas simultâneas. Em caso de falha parcial, a mensagem informa quantos registros foram confirmados. Reenviar a base atualiza as linhas pela chave de identidade, evitando duplicatas na mesma planilha. Exclusões locais são enviadas como tombstones e removidas da aba gerenciada pelo script; lotes de exclusões também são idempotentes.
 
 ## Segurança e limitações
 

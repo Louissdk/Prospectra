@@ -48,6 +48,7 @@
 - [ ] Validar parser com endereço sem número, com complemento, bairro e CEP em perfil Chrome de teste.
 
 - [ ] Reexecutar o schema SQL Supabase em projeto de teste e confirmar a coluna deleted_at.
+- [ ] Confirmar Data API habilitada, schema public exposto e grant explícito para authenticated; testar leitura e upsert com RLS.
 - [ ] Excluir um lead no dispositivo A, sincronizar e confirmar que ele não reaparece no dispositivo B.
 - [ ] Recriar o mesmo lead depois da exclusão e confirmar a regra de atualização mais recente.
 - [ ] Testar sincronização com tombstones e leads ativos próximos dos limites de 10.000 + 10.000.
