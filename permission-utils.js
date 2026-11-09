@@ -7,7 +7,7 @@ export function enrichmentPermissionOrigins(items = []) {
       const url = new URL(String(item?.website || ''));
       if (!isPublicHttpUrl(url.href)) continue;
       const hostname = url.hostname.toLowerCase();
-      const withoutWww = hostname.replace(/^www\\./, '');
+      const withoutWww = hostname.replace(/^www\./, '');
       const withWww = hostname.startsWith('www.') ? hostname : 'www.' + hostname;
       for (const host of new Set([hostname, withoutWww, withWww])) {
         const origin = url.protocol + '//' + host + (url.port ? ':' + url.port : '');
