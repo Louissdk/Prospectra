@@ -16,29 +16,37 @@ O Prospectra pode enviar os leads para uma planilha usando um Web App do Google 
 const SHEET_NAME = 'Prospectra Leads';
 
 function doPost(e) {
-  const lock = LockService.getScriptLock();
+  let lock = null;
   let lockAcquired = false;
   try {
-    // Serializa o ciclo ler → alterar → regravar para evitar perda em chamadas simultâneas.
-    lock.waitLock(30000);
-    lockAcquired = true;
-
     const payload = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return output({ ok: false, error: 'Payload inválido.' });
+    }
     const expected = PropertiesService.getScriptProperties().getProperty('PROSPECTRA_TOKEN');
     const received = String(payload.token || '');
     delete payload.token;
 
+    // Rejeita chamadas inválidas antes de ocupar o bloqueio compartilhado.
     if (payload.action !== 'upsert') {
       return output({ ok: false, error: 'Ação inválida.' });
     }
     if (!expected || received !== expected) {
       return output({ ok: false, error: 'Token inválido ou não configurado.' });
     }
-    const leads = Array.isArray(payload.leads) ? payload.leads : [];
-    const deletedLeadKeys = Array.isArray(payload.deletedLeadKeys) ? payload.deletedLeadKeys : [];
+    if (!Array.isArray(payload.leads) || !Array.isArray(payload.deletedLeadKeys)) {
+      return output({ ok: false, error: 'Listas de leads e exclusões inválidas.' });
+    }
+    const leads = payload.leads;
+    const deletedLeadKeys = payload.deletedLeadKeys;
     if (leads.length > 200 || deletedLeadKeys.length > 200) {
       return output({ ok: false, error: 'Lote inválido. Envie até 200 leads e 200 exclusões por requisição.' });
     }
+
+    // Serializa apenas o ciclo ler → alterar → regravar de requisições autenticadas.
+    lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    lockAcquired = true;
 
     const headers = [
       'ID', 'Chave de identidade', 'Empresa', 'Categoria', 'Telefone', 'Telefones',
