@@ -4,6 +4,14 @@
 
 **Prospectra é uma extensão Chrome de prospecção local e organização comercial.** Ela transforma pesquisas empresariais abertas no Google Maps em registros estruturados, permite localizar contatos publicados e organiza o acompanhamento em um CRM leve.
 
+## Identidade visual
+
+- **Verde `#018D3E`:** confiança, crescimento e ações principais.
+- **Creme `#FDF7E6`:** base clara e confortável para leitura.
+- **Vermelho `#E71506`:** alertas, atenção e ações destrutivas.
+
+A paleta deve permanecer consistente entre a extensão, os ícones, as artes do repositório e os materiais de divulgação.
+
 ## Público-alvo inicial
 
 - pequenos negócios e consultorias que fazem prospecção B2B local;

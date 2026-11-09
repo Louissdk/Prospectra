@@ -6,7 +6,7 @@ Todas as alterações importantes do Prospectra são registradas neste arquivo.
 
 ### Produto e experiência
 - Reorganização do painel em cinco áreas: Visão geral, Leads, Funil, Pesquisas e Configurações.
-- Nova identidade visual escura, tipografia, hierarquia de informações, cartões, indicadores e componentes responsivos.
+- Identidade visual clara em verde `#018D3E`, creme `#FDF7E6` e vermelho `#E71506`, com tipografia, hierarquia, cartões, indicadores e componentes responsivos.
 - Dashboard com indicadores, distribuição por etapa, follow-ups e cobertura por cidade/região.
 
 ### Coleta e estabilidade

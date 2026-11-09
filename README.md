@@ -15,7 +15,8 @@
     <a href="docs/GUIA-RAPIDO.md">Guia rápido</a> ·
     <a href="CHANGELOG.md">Histórico de versões</a> ·
     <a href="docs/SOLUCAO-DE-PROBLEMAS.md">Ajuda e problemas</a> ·
-    <a href="docs/ARQUITETURA.md">Arquitetura</a>
+    <a href="docs/ARQUITETURA.md">Arquitetura</a> ·
+    <a href="docs/IDENTIDADE-VISUAL.md">Identidade visual</a>
   </p>
 </div>
 
