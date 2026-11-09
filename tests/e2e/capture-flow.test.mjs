@@ -145,3 +145,28 @@ test('recognizes an open Maps business detail separately from a search result li
   assert.equal(readiness?.businessName,'Empresa Exemplo');
   dom.window.close();
 });
+
+
+test('recognizes valid business links on a Maps search route when feed roles are unavailable', async () => {
+  const dom=new JSDOM('<!doctype html><html><head><title>Maps results without feed role</title></head><body><main><a href="https://www.google.com/maps/place/Empresa+Visivel"><span>Empresa Visível</span></a></main></body></html>',{
+    url:'https://www.google.com/maps/search/?api=1&query=clinicas+guarulhos',
+    runScripts:'outside-only',
+    pretendToBeVisual:true
+  });
+  const {window}=dom;
+  let listener=null;
+  window.HTMLElement.prototype.getClientRects=function(){return [];};
+  window.chrome={runtime:{
+    onMessage:{addListener(fn){listener=fn;}},
+    sendMessage(){return Promise.resolve({ok:true});}
+  }};
+  window.eval(contentScript);
+  let readiness=null;
+  listener({type:'PROSPECTRA_MAPS_READINESS'},{},(value)=>{readiness=value;});
+  assert.equal(readiness?.isMaps,true);
+  assert.equal(readiness?.ready,true);
+  assert.equal(readiness?.pageType,'search');
+  assert.equal(readiness?.businessLinks,1);
+  assert.equal(readiness?.visibleContainers,0);
+  dom.window.close();
+});

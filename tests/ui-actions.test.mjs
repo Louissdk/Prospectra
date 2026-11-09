@@ -100,3 +100,16 @@ test('readiness card includes a manual recheck and explicit 3-step guidance',asy
   assert.match(source,/\$\('#checkMapsButton'\)/);
 });
 
+
+
+test('requests explicit host access to Google Maps before opening and reading search results',async()=>{
+  const manifest=JSON.parse(await readFile(new URL('../manifest.json',import.meta.url),'utf8'));
+  assert.ok(manifest.optional_host_permissions.includes('https://*.google.com/*'));
+  assert.ok(manifest.optional_host_permissions.includes('https://*.google.com.br/*'));
+  assert.match(source,/chrome\.permissions\.request\(\{origins:MAPS_HOST_PERMISSIONS\}\)/);
+});
+test('shows an actionable message when content-script injection is blocked',()=>{
+  assert.match(source,/Acesso ao Google Maps não autorizado/);
+  assert.match(source,/O Chrome não liberou acesso do Prospectra/);
+  assert.match(source,/issue:permission/);
+});

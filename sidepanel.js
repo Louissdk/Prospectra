@@ -15,6 +15,7 @@ import { MAX_DELETION_TOMBSTONES, normalizeDeletionTombstone, createDeletionTomb
 import { getGeolocatedLeads, buildGeoJSON, buildKML, buildCoverageSvg } from './geo-utils.js';
 
 const $ = (selector) => document.querySelector(selector);
+const MAPS_HOST_PERMISSIONS = ['https://*.google.com/*','https://*.google.com.br/*'];
 const PAGE_SIZE = 50;
 const MAX_LEADS = 10000;
 const MAX_CLOUD_RECORDS = MAX_LEADS + MAX_DELETION_TOMBSTONES;
@@ -690,17 +691,48 @@ async function enrichExistingLeads() {
 }
 
 async function queryMapsReadiness(tabId) {
-  let result = null;
-  try { result = await chrome.tabs.sendMessage(tabId, { type: 'PROSPECTRA_MAPS_READINESS' }); } catch {}
-  if (result?.ok) return result;
+  let firstMessageError = '';
+  try {
+    const result = await chrome.tabs.sendMessage(tabId, { type: 'PROSPECTRA_MAPS_READINESS' });
+    if (result?.ok) return result;
+  } catch (error) { firstMessageError = error?.message || String(error); }
   try {
     await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
-    await delay(180);
-    result = await chrome.tabs.sendMessage(tabId, { type: 'PROSPECTRA_MAPS_READINESS' });
-  } catch {}
-  return result?.ok ? result : null;
+  } catch (error) {
+    const message = error?.message || String(error);
+    const permissionFailure = /cannot access|host permission|permission|not allowed|cannot be scripted/i.test(message);
+    return {
+      ok:false,isMaps:true,ready:false,isBlocked:false,issue:permissionFailure?'permission':'injection',
+      message:permissionFailure
+        ? 'O Chrome não liberou acesso do Prospectra a esta página do Google Maps. Clique novamente em “Abrir pesquisa no Maps” e aceite a permissão de acesso ao Google Maps.'
+        : 'O leitor do Prospectra não conseguiu ser carregado nesta aba: '+message,
+      technicalMessage:message,firstMessageError
+    };
+  }
+  await delay(250);
+  try {
+    const result = await chrome.tabs.sendMessage(tabId, { type: 'PROSPECTRA_MAPS_READINESS' });
+    if (result?.ok) return result;
+  } catch (error) {
+    const message = error?.message || String(error);
+    return {
+      ok:false,isMaps:true,ready:false,isBlocked:false,issue:'no_listener',
+      message:'O leitor foi carregado, mas o Chrome não confirmou a comunicação com a página. Recarregue a aba do Google Maps e clique em “Verificar”.',
+      technicalMessage:message,firstMessageError
+    };
+  }
+  return {
+    ok:false,isMaps:true,ready:false,isBlocked:false,issue:'no_response',
+    message:'A página do Google Maps não respondeu ao leitor do Prospectra. Recarregue a aba do Maps e tente novamente.',
+    technicalMessage:firstMessageError
+  };
 }
 function applyMapsReadiness(tabId, result) {
+  if (result?.issue) {
+    const title=result.issue==='permission'?'Acesso ao Google Maps não autorizado':'Leitor do Maps não respondeu';
+    setMapsReadiness('error',title,result.message||'Não foi possível conectar ao leitor do Maps.',{tabId,pageType:'loading',businessLinks:0});
+    return false;
+  }
   if (!result?.isMaps) {
     setMapsReadiness('idle','Google Maps não detectado','Abra uma pesquisa oficial do Google Maps. Os botões serão liberados após a detecção das fichas.',{tabId,pageType:'unsupported',businessLinks:0});
     return false;
@@ -720,7 +752,13 @@ function applyMapsReadiness(tabId, result) {
     return true;
   }
   const count=Number(result.businessLinks||0);
-  setMapsReadiness('waiting','Aguardando resultados do Google Maps',count?count+' link(s) encontrados, mas a lista ainda não está pronta. Aguarde a página terminar de carregar.':'A pesquisa abriu. A extensão está esperando os cartões de empresas aparecerem. Não precisa clicar de novo.',{tabId,pageType:'loading',businessLinks:count});
+  const raw=Number(result.rawMapsLinks||0);
+  const detail=count
+    ? count+' ficha(s) localizada(s), mas a página ainda não confirmou a lista. Clique em “Verificar” depois que os resultados terminarem de carregar.'
+    : raw
+      ? 'O Maps exibiu '+raw+' link(s) relacionados a mapas, mas nenhum foi reconhecido como ficha de empresa. A estrutura dos resultados pode ter mudado.'
+      : 'O leitor está conectado, mas ainda não encontrou links de fichas de empresas. Confira se a busca terminou e se há cartões de resultados na página.';
+  setMapsReadiness('waiting','Resultados ainda não reconhecidos',detail+' Diagnóstico: '+Number(result.visibleContainers||0)+' contêiner(es) visível(is), '+Number(result.visibleBusinessLinks||0)+' link(s) de ficha visível(is).',{tabId,pageType:'loading',businessLinks:count});
   return false;
 }
 async function waitForMapsPageReadiness(tabId,{timeout=45000,force=false}={}) {
@@ -737,7 +775,7 @@ async function waitForMapsPageReadiness(tabId,{timeout=45000,force=false}={}) {
         latest=await queryMapsReadiness(tabId);
         if(latest) {
           const ready=applyMapsReadiness(tabId,latest);
-          if(ready||latest.isBlocked) return latest;
+          if(ready||latest.isBlocked||latest.issue) return latest;
         } else {
           setMapsReadiness('checking','Leitor do Maps sendo conectado','A página abriu, mas o leitor ainda não respondeu. Não clique várias vezes; a extensão está tentando conectar novamente.',{tabId,pageType:'loading'});
         }
@@ -856,6 +894,8 @@ async function captureCurrent(mode='visible') {
   const limit=Math.floor(parsedLimit);
   const term=$('#searchTerm').value.trim(),city=$('#searchCity').value.trim();
   try {
+    const mapsAccess=await chrome.permissions.request({origins:MAPS_HOST_PERMISSIONS});
+    if(!mapsAccess) throw new Error('O Chrome não autorizou o acesso do Prospectra ao Google Maps. Permita o acesso solicitado e tente novamente.');
     const tab=await getActiveMapsTab(mode);
     await runCapture(tab,{mode,limit,minRating:Number($('#minimumRating').value),searchTerm:term,city,skipExisting:$('#skipExisting').checked,enrich:$('#autoEnrich').checked});
   } catch(error) { setStatus(error?.message||'Não foi possível iniciar a coleta.','error'); }
@@ -864,9 +904,12 @@ async function searchMaps() {
   if (busy || queueRunning) return;
   const term=$('#searchTerm').value.trim(),city=$('#searchCity').value.trim();
   if (!term || !city) {setStatus('Informe segmento e cidade.','warning');return;}
-  const url='https://www.google.com/maps/search/'+encodeURIComponent(term+' '+city);
+  const url='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(term+' '+city);
   try {
-    setMapsReadiness('checking','Abrindo sua pesquisa no Google Maps','Etapa 1/3: abrindo o Maps. Etapa 2/3: identificando os cartões. Você não precisa clicar novamente.',{pageType:'loading',businessLinks:0});
+    // Solicita acesso só aos domínios oficiais do Maps no clique explícito do usuário.
+    const mapsAccess=await chrome.permissions.request({origins:MAPS_HOST_PERMISSIONS});
+    if(!mapsAccess) throw new Error('O Chrome não autorizou o acesso do Prospectra ao Google Maps. Permita o acesso solicitado e tente novamente.');
+    setMapsReadiness('checking','Abrindo sua pesquisa no Google Maps','Etapa 1/3: acesso autorizado e pesquisa sendo aberta. Etapa 2/3: identificando os cartões. Você não precisa clicar novamente.',{pageType:'loading',businessLinks:0});
     setStatus('Pesquisa enviada ao Google Maps. O Prospectra está aguardando os resultados e avisará quando a coleta estiver liberada.');
     const [active]=await chrome.tabs.query({active:true,currentWindow:true});
     let tab;
@@ -878,7 +921,8 @@ async function searchMaps() {
     if(readiness?.ready) {
       setStatus(readiness.pageType==='detail'?'Ficha identificada. O botão “Ficha aberta” está liberado.':'Pesquisa pronta. Foram identificadas '+Number(readiness.businessLinks||0)+' ficha(s); você já pode iniciar a coleta.','success');
     } else if(readiness?.isBlocked) setStatus('O Google Maps exibiu uma verificação ou limitação. Resolva-a manualmente antes de tentar coletar.','warning');
-    else setStatus('A pesquisa foi aberta, mas ainda não foi possível confirmar as fichas. A coleta continua bloqueada por segurança. Confira o Maps e use “Verificar” para tentar novamente.','warning');
+    else if(readiness?.issue) setStatus(readiness.message,'error');
+    else setStatus('A pesquisa foi aberta, mas o leitor não encontrou fichas de empresas. Confira se há resultados visíveis no Maps. O cartão acima mostra o diagnóstico e permite tentar novamente.','warning');
   } catch(error) {
     setMapsReadiness('error','Não foi possível abrir a pesquisa','Confira a conexão e tente abrir o Google Maps novamente.',{pageType:'unsupported'});
     setStatus(error?.message||'Não foi possível abrir o Maps.','error');
@@ -950,6 +994,8 @@ async function runQueue() {
   const outcomes=[];
   queueRunning=true;queueStopRequested=false;renderResearch();
   try {
+    const mapsAccess=await chrome.permissions.request({origins:MAPS_HOST_PERMISSIONS});
+    if(!mapsAccess) throw new Error('O Chrome não autorizou o acesso do Prospectra ao Google Maps. Permita o acesso solicitado e execute a fila novamente.');
     const [active]=await chrome.tabs.query({active:true,currentWindow:true});
     tab=active?.id && isGoogleMapsUrl(active.url||'') ? active : await chrome.tabs.create({url:'https://www.google.com/maps',active:true});
     for (const item of pending) {

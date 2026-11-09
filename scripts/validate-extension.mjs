@@ -20,6 +20,9 @@ if (manifest.version !== pkg.version) errors.push('A versão do package.json dev
 if (!manifest.background?.service_worker || manifest.background.type !== 'module') errors.push('Service worker ES module não configurado.');
 if (!manifest.side_panel?.default_path) errors.push('Painel lateral não configurado.');
 if (!manifest.permissions?.includes('storage')) errors.push('Permissão storage ausente.');
+for (const origin of ['https://*.google.com/*','https://*.google.com.br/*']) {
+  if (!manifest.optional_host_permissions?.includes(origin)) errors.push('Permissão opcional de host do Google Maps ausente: '+origin);
+}
 if (!/color-scheme:\s*light/i.test(styles)) errors.push('A interface precisa usar o esquema claro da identidade visual.');
 for (const [name, color] of Object.entries({verde:'#018D3E',creme:'#FDF7E6',vermelho:'#E71506'})) {
   if (!styles.toUpperCase().includes(color)) errors.push('Cor institucional ausente no CSS: '+name+' '+color);

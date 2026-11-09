@@ -117,10 +117,13 @@
       try { document.querySelectorAll(selector).forEach((element) => candidates.add(element)); } catch {}
     }
     const visible = [...candidates].filter(isRendered);
+    const businessAnchors = getResultAnchors(document);
     return {
       containers: candidates.size,
       visibleContainers: visible.length,
-      businessLinks: getResultAnchors(document).length
+      businessLinks: businessAnchors.length,
+      visibleBusinessLinks: businessAnchors.filter(isRendered).length,
+      rawMapsLinks: document.querySelectorAll('a[href*="/maps"]').length
     };
   }
   function getMapsPageReadiness() {
@@ -131,14 +134,18 @@
     const heading = clean(detailRoot().querySelector('h1')?.textContent || '');
     const isOpenDetail = path.includes('/maps/place/') && heading.length > 1;
     const diagnostics = getResultDiagnostics();
-    const hasSearchResults = diagnostics.businessLinks > 0 && diagnostics.visibleContainers > 0;
+    // O Maps pode mudar os contêineres/roles acessíveis sem mudar os links das fichas.
+    // Na rota de pesquisa, um link válido de estabelecimento confirma que há resultado.
+    const isSearchRoute = /^\/maps\/search(?:\/|$)/i.test(path);
+    const hasSearchResults = diagnostics.businessLinks > 0 &&
+      (diagnostics.visibleContainers > 0 || isSearchRoute);
     const pageType = isBlocked ? 'blocked' : isOpenDetail ? 'detail' : hasSearchResults ? 'search' : 'loading';
     const ready = !isBlocked && (isOpenDetail || hasSearchResults);
     let message = 'Aguardando os cartões de empresas aparecerem no Google Maps.';
     if (isBlocked) message = 'O Google Maps apresentou uma verificação ou limitação de acesso.';
     else if (isOpenDetail) message = 'Ficha de empresa detectada: ' + heading + '.';
     else if (hasSearchResults) message = diagnostics.businessLinks + ' ficha(s) de empresa detectada(s).';
-    return { ok:true,isMaps,ready,isBlocked,pageType,businessName:heading,businessLinks:diagnostics.businessLinks,visibleContainers:diagnostics.visibleContainers,url:location.href,title:document.title,readyState:document.readyState,message };
+    return { ok:true,isMaps,ready,isBlocked,pageType,businessName:heading,businessLinks:diagnostics.businessLinks,visibleContainers:diagnostics.visibleContainers,visibleBusinessLinks:diagnostics.visibleBusinessLinks,rawMapsLinks:diagnostics.rawMapsLinks,isSearchRoute,url:location.href,title:document.title,readyState:document.readyState,message };
   }
 
   function getFeed() {
@@ -852,7 +859,7 @@
         ok: true, at: new Date().toISOString(), url: location.href,
         title: document.title, readyState: document.readyState,
         isMaps: validMapsTab(), isBlocked: detectMapsRestriction(),
-        diagnostics, userAgent: navigator.userAgent
+        diagnostics, readiness: getMapsPageReadiness(), userAgent: navigator.userAgent
       });
       return false;
     }
