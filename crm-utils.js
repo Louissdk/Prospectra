@@ -107,7 +107,69 @@ export function parseAddress(address = '') {
   if (!pieces.length) return result;
 
   const stateCodes = 'AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO';
-  const stateSuffix = new RegExp('(?:^|\\s*[-/]\\s*)(' + stateCodes + ')export function qualityScore(lead = {}, weights = {}) {
+  const cityStatePattern = new RegExp('^(.*?)\\s*[-/]\\s*(' + stateCodes + ')$', 'i');
+  const stateOnlyPattern = new RegExp('^(' + stateCodes + ')$', 'i');
+  let cityStart = pieces.length;
+  const cityIndex = pieces.findIndex((piece) => cityStatePattern.test(piece) || stateOnlyPattern.test(piece));
+  if (cityIndex >= 0) {
+    const cityState = pieces[cityIndex].match(cityStatePattern);
+    if (cityState) {
+      result.city = cleanText(cityState[1]);
+      result.state = cityState[2].toUpperCase();
+      cityStart = cityIndex;
+    } else {
+      result.state = pieces[cityIndex].toUpperCase();
+      if (cityIndex > 0) {
+        result.city = pieces[cityIndex - 1];
+        cityStart = cityIndex - 1;
+      } else {
+        cityStart = cityIndex;
+      }
+    }
+  } else if (pieces.length >= 3) {
+    result.city = pieces[pieces.length - 1];
+    cityStart = pieces.length - 1;
+  }
+
+  const addressParts = pieces.slice(0, cityStart);
+  if (!addressParts.length && pieces.length === 1) {
+    result.street = pieces[0];
+    return result;
+  }
+
+  const first = addressParts.shift() || '';
+  const inlineNumber = first.match(/^(.*?)\s+(?:n[ºo.]?\s*)?(\d+[A-Za-z]?(?:-\d+)?|s\/n)$/i);
+  if (inlineNumber) {
+    result.street = cleanText(inlineNumber[1]);
+    result.number = inlineNumber[2].toLowerCase() === 's/n' ? 's/n' : inlineNumber[2];
+  } else {
+    result.street = first;
+  }
+
+  const numberPattern = /^\s*(?:n[ºo.]?\s*)?(\d+[A-Za-z]?(?:-\d+)?|s\/n)(?:\s*[-/]\s*(.*))?$/i;
+  const extra = [...addressParts];
+  if (!result.number && extra.length) {
+    const match = extra[0].match(numberPattern);
+    if (match) {
+      result.number = match[1].toLowerCase() === 's/n' ? 's/n' : match[1];
+      if (match[2]) result.complement = cleanText(match[2]);
+      extra.shift();
+    }
+  }
+  if (!result.complement && extra.length && /\b(sala|conjunto|loja|bloco|andar|apto|apartamento|galp[aã]o|fundos|casa)\b/i.test(extra[0])) {
+    result.complement = extra.shift();
+  }
+  if (extra.length) {
+    result.neighborhood = extra.pop();
+    if (!result.complement && extra.length) result.complement = extra.join(', ');
+  }
+
+  if (result.street && result.city && result.state) result.confidence = result.number ? 'high' : 'medium';
+  else if (result.street && result.neighborhood) result.confidence = 'medium';
+  return result;
+}
+
+export function qualityScore(lead = {}, weights = {}) {
   const w = { ...DEFAULT_WEIGHTS, ...weights };
   const present = {
     phone: (lead.phones?.length || lead.phone ? 1 : 0),
