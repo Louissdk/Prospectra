@@ -125,3 +125,27 @@ test('separates number, complement, neighborhood and city in common Brazilian ad
   assert.equal(parsed.city,'Guarulhos');
   assert.equal(parsed.state,'SP');
 });
+
+test('keeps the newest CRM state when a stale cloud record is merged later', () => {
+  const localNewer = {
+    id:'local-1', placeId:'ChIJ-CONFLICT', name:'Empresa Conflito', stage:'negotiation',
+    owner:'Vendedora A', website:'https://site-atual.example', tags:['prioridade'],
+    activities:[{id:'local-activity',note:'Proposta enviada'}],
+    updatedAt:'2026-11-09T12:00:00.000Z'
+  };
+  const cloudOlder = {
+    id:'cloud-1', placeId:'ChIJ-CONFLICT', name:'Empresa Conflito', stage:'new',
+    owner:'', website:'https://site-antigo.example', tags:['origem-nuvem'],
+    activities:[{id:'cloud-activity',note:'Importado da nuvem'}],
+    updatedAt:'2026-11-09T10:00:00.000Z'
+  };
+  const merged = mergeLeadRecords([localNewer],[cloudOlder]);
+  assert.equal(merged.length,1);
+  assert.equal(merged[0].stage,'negotiation');
+  assert.equal(merged[0].owner,'Vendedora A');
+  assert.equal(merged[0].website,'https://site-atual.example');
+  assert.equal(merged[0].updatedAt,'2026-11-09T12:00:00.000Z');
+  assert.ok(merged[0].tags.includes('prioridade'));
+  assert.ok(merged[0].tags.includes('origem-nuvem'));
+  assert.equal(merged[0].activities.length,2);
+});

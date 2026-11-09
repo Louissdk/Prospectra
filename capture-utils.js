@@ -28,13 +28,19 @@ function mergeArrays(a, b, normalizer = (value) => String(value || '').trim()) {
   return [...new Set([...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].map(normalizer).filter(Boolean))];
 }
 function mergeLeadRecord(previous, incoming) {
-  const merged = { ...previous, ...incoming };
+  const previousTime = Date.parse(previous.updatedAt || previous.collectedAt || '') || 0;
+  const incomingTime = Date.parse(incoming.updatedAt || incoming.collectedAt || '') || 0;
+  const incomingIsNewer = incomingTime >= previousTime;
+  const newer = incomingIsNewer ? incoming : previous;
+  const older = incomingIsNewer ? previous : incoming;
+  const merged = { ...older, ...newer };
   merged.id = previous.id || incoming.id;
+
   for (const field of ['emails', 'phones', 'tags']) {
     merged[field] = mergeArrays(previous[field], incoming[field], (value) => String(value || '').trim().toLowerCase());
   }
-  merged.phone = incoming.phone || previous.phone || merged.phones?.[0] || '';
-  merged.cnpj = incoming.cnpj || previous.cnpj || merged.cnpjs?.[0] || '';
+  merged.phone = newer.phone || older.phone || merged.phones?.[0] || '';
+  merged.cnpj = newer.cnpj || older.cnpj || merged.cnpjs?.[0] || '';
   merged.cnpjs = mergeArrays(previous.cnpjs, incoming.cnpjs, (value) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, ''));
   if (merged.cnpj && !merged.cnpjs.includes(merged.cnpj)) merged.cnpjs.unshift(merged.cnpj);
   merged.emails = merged.emails || [];
@@ -42,29 +48,29 @@ function mergeLeadRecord(previous, incoming) {
     .map((item) => { try { return JSON.parse(item); } catch { return item; } });
   merged.activities = mergeArrays(previous.activities, incoming.activities, (item) => typeof item === 'string' ? item : JSON.stringify(item))
     .map((item) => { try { return typeof item === 'string' ? JSON.parse(item) : item; } catch { return item; } });
-  merged.socialProfiles = { ...(previous.socialProfiles || {}), ...(incoming.socialProfiles || {}) };
-  merged.sourceMap = { ...(previous.sourceMap || {}), ...(incoming.sourceMap || {}) };
-  merged.confidence = { ...(previous.confidence || {}), ...(incoming.confidence || {}) };
-  merged.emailTypes = { ...(previous.emailTypes || {}), ...(incoming.emailTypes || {}) };
-  merged.addressParts = incoming.addressParts?.raw ? incoming.addressParts : previous.addressParts;
-  merged.website = incoming.website || previous.website || '';
-  merged.whatsappUrl = incoming.whatsappUrl || previous.whatsappUrl || '';
-  merged.category = incoming.category || previous.category || '';
-  merged.categoryPath = incoming.categoryPath?.length ? incoming.categoryPath : previous.categoryPath || [];
-  merged.address = incoming.address || previous.address || '';
-  merged.rating = incoming.rating || previous.rating || '';
-  merged.reviewCount = incoming.reviewCount || previous.reviewCount || '';
-  merged.mapsUrl = incoming.mapsUrl || previous.mapsUrl || '';
-  merged.placeId = incoming.placeId || previous.placeId || extractPlaceId(merged.mapsUrl);
-  merged.searchTerm = incoming.searchTerm || previous.searchTerm || '';
-  merged.city = incoming.city || previous.city || '';
-  merged.stage = incoming.stage || previous.stage || 'new';
-  merged.owner = incoming.owner || previous.owner || '';
-  merged.nextFollowUp = incoming.nextFollowUp || previous.nextFollowUp || '';
+  merged.socialProfiles = { ...(older.socialProfiles || {}), ...(newer.socialProfiles || {}) };
+  merged.sourceMap = { ...(older.sourceMap || {}), ...(newer.sourceMap || {}) };
+  merged.confidence = { ...(older.confidence || {}), ...(newer.confidence || {}) };
+  merged.emailTypes = { ...(older.emailTypes || {}), ...(newer.emailTypes || {}) };
+  merged.addressParts = newer.addressParts?.raw ? newer.addressParts : older.addressParts;
+  merged.website = newer.website || older.website || '';
+  merged.whatsappUrl = newer.whatsappUrl || older.whatsappUrl || '';
+  merged.category = newer.category || older.category || '';
+  merged.categoryPath = newer.categoryPath?.length ? newer.categoryPath : older.categoryPath || [];
+  merged.address = newer.address || older.address || '';
+  merged.rating = newer.rating || older.rating || '';
+  merged.reviewCount = newer.reviewCount || older.reviewCount || '';
+  merged.mapsUrl = newer.mapsUrl || older.mapsUrl || '';
+  merged.placeId = newer.placeId || older.placeId || extractPlaceId(merged.mapsUrl);
+  merged.searchTerm = newer.searchTerm || older.searchTerm || '';
+  merged.city = newer.city || older.city || '';
+  merged.stage = newer.stage || older.stage || 'new';
+  merged.owner = newer.owner || older.owner || '';
+  merged.nextFollowUp = newer.nextFollowUp || older.nextFollowUp || '';
   merged.doNotContact = Boolean(incoming.doNotContact || previous.doNotContact);
-  merged.closedStatus = incoming.closedStatus && incoming.closedStatus !== 'unknown' ? incoming.closedStatus : previous.closedStatus || 'unknown';
+  merged.closedStatus = newer.closedStatus && newer.closedStatus !== 'unknown' ? newer.closedStatus : older.closedStatus || 'unknown';
   merged.collectedAt = previous.collectedAt || incoming.collectedAt || new Date().toISOString();
-  merged.updatedAt = new Date().toISOString();
+  merged.updatedAt = newer.updatedAt || newer.collectedAt || older.updatedAt || older.collectedAt || new Date().toISOString();
   merged.qualityScore = qualityScore(merged);
   return normalizeLeadRecord(merged);
 }
