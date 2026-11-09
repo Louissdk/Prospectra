@@ -40,3 +40,13 @@ test('removing a queue item or clearing the queue invalidates its checkpoint', (
   assert.match(clearHandler,/lastCaptureCheckpoint\?\.queueItemId/);
   assert.match(clearHandler,/clearLastCaptureCheckpoint\(\)/);
 });
+
+test('coverage panel exposes KML and GeoJSON exports disabled until coordinates exist', async () => {
+  const html=await readFile(new URL('../sidepanel.html', import.meta.url),'utf8');
+  assert.match(html,/id="coverageMap"/);
+  assert.match(html,/id="exportKmlButton"[^>]*disabled/);
+  assert.match(html,/id="exportGeoJsonButton"[^>]*disabled/);
+  assert.match(source,/\$\('#exportKmlButton'\)/);
+  assert.match(source,/\$\('#exportGeoJsonButton'\)/);
+  assert.match(source,/getGeolocatedLeads\(leads\)/);
+});

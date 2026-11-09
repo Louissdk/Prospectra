@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { extractPlaceCoordinates, hasCoordinates, getGeolocatedLeads, buildGeoJSON, buildKML } from '../geo-utils.js';
+import { extractPlaceCoordinates, hasCoordinates, getGeolocatedLeads, buildGeoJSON, buildKML, buildCoverageSvg } from '../geo-utils.js';
 
 test('extracts only exact place coordinates from Google Maps detail URLs', () => {
   assert.deepEqual(
@@ -23,4 +23,16 @@ test('exports KML and GeoJSON with longitude-first coordinate order', () => {
   const kml=buildKML(leads);
   assert.match(kml,/<name>Empresa &amp; Filhos<\/name>/);
   assert.match(kml,/<coordinates>-46\.6,-23\.5,0<\/coordinates>/);
+});
+
+test('renders an accessible proportional coverage SVG with escaped labels', () => {
+  const svg=buildCoverageSvg([
+    {name:'Empresa <A>',city:'Guarulhos',latitude:-23.46,longitude:-46.53},
+    {name:'Empresa B',city:'São Paulo',latitude:-23.55,longitude:-46.63}
+  ]);
+  assert.match(svg,/<svg[^>]+role="img"/);
+  assert.match(svg,/Empresa &lt;A&gt;/);
+  assert.match(svg,/Longitude:/);
+  assert.match(svg,/Latitude:/);
+  assert.equal(buildCoverageSvg([{name:'Sem coordenadas'}]),'');
 });

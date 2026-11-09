@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  MAX_DELETION_TOMBSTONES, normalizeDeletionTombstone,
+  MAX_DELETION_TOMBSTONES, normalizeDeletionTombstone, createDeletionTombstone,
   mergeDeletionTombstones, applyDeletionTombstones,
   pruneSupersededTombstones, buildSupabaseSyncRows
 } from '../sync-utils.js';
