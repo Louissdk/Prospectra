@@ -299,6 +299,33 @@ async function updateLead(id, updater) {
   await persist();
 }
 async function handleLeadAction(action,id) {
+  if (action === 'remove-queue') {
+    const queued = state.queue.find((item) => item.id === id);
+    if (!queued) return;
+    if (queued.status === 'running' || queueRunning) {
+      setStatus('Pare a fila antes de remover uma pesquisa em execução.','warning');
+      return;
+    }
+    state.queue = state.queue.filter((item) => item.id !== id);
+    await persist();
+    if (lastCaptureCheckpoint?.queueItemId === id) await clearLastCaptureCheckpoint();
+    renderResearch();
+    return;
+  }
+  if (action === 'remove-search') {
+    state.searches = state.searches.filter((item) => item.id !== id);
+    await persist();
+    renderResearch();
+    return;
+  }
+  if (action === 'queue-saved') {
+    const saved = state.searches.find((item) => item.id === id);
+    if (!saved) return;
+    state.queue.push({ ...saved,id:makeId(),status:'pending',collected:0,createdAt:new Date().toISOString() });
+    await persist();
+    renderResearch();
+    return;
+  }
   const lead = leads.find((item) => item.id === id);
   if (!lead) return;
   if (action === 'activity') {
@@ -328,13 +355,9 @@ async function handleLeadAction(action,id) {
       else state.doNotContact = (state.doNotContact||[]).filter((entry) => !(entry.placeId && entry.placeId === item.placeId) && !(entry.nameKey && entry.nameKey === normalizeCompanyName(item.name)) && !(entry.phone && entry.phone === (item.phone||'').replace(/\D/g,'')));
       addActivity(item,'consent',blocked?'Removido da lista de não contatar.':'Marcado para não contatar.');
     });
-  } else if (action === 'remove-queue') {
-    state.queue = state.queue.filter((item) => item.id !== id); await persist();
-  } else if (action === 'remove-search') {
-    state.searches = state.searches.filter((item) => item.id !== id); await persist();
-  } else if (action === 'queue-saved') {
-    const item = state.searches.find((search) => search.id === id);
-    if (item) { state.queue.push({ ...item,id:makeId(),status:'pending',collected:0,createdAt:new Date().toISOString() }); await persist(); }
+
+
+
   }
 }
 
@@ -1117,8 +1140,18 @@ $('#importFile').addEventListener('change',async(event)=>{
   finally {event.target.value='';}
 });
 $('#clearButton').addEventListener('click',async()=>{
-  if (!confirm('Excluir permanentemente todos os leads, interações, pesquisas e a fila deste navegador? Faça um backup antes.')) return;
-  leads=[];state.activities=[];state.searches=[];state.queue=[];state.doNotContact=[];await persist();setStatus('Base local excluída.','success');
+  if (busy || queueRunning) {setStatus('Finalize ou cancele a operação atual antes de apagar a base.','warning');return;}
+  if (!confirm('Excluir permanentemente todos os leads, interações, pesquisas, fila, bloqueios de contato e diagnósticos deste navegador? Faça um backup antes.')) return;
+  leads=[];
+  state.activities=[];
+  state.searches=[];
+  state.queue=[];
+  state.doNotContact=[];
+  state.diagnostics=[];
+  await persist();
+  await clearLastCaptureCheckpoint();
+  renderResearch();
+  setStatus('Base local e checkpoint de coleta excluídos. Configurações de integração foram preservadas.','success');
 });
 $('#saveProfileButton').addEventListener('click',saveProfile);
 $('#followUpNotifications').addEventListener('change',async(event)=>{
@@ -1146,8 +1179,15 @@ $('#runQueueButton').addEventListener('click',runQueue);
 $('#resumeCheckpointButton').addEventListener('click',resumeCheckpoint);
 $('#stopQueueButton').addEventListener('click',()=>{queueStopRequested=true;cancelCapture();});
 $('#clearQueueButton').addEventListener('click',async()=>{
+  if (queueRunning || busy) {setStatus('Pare a execução atual antes de limpar a fila.','warning');return;}
   if (!confirm('Remover todas as pesquisas da fila? As empresas já capturadas permanecem salvas.')) return;
-  state.queue=[];await persist();renderResearch();
+  const removedIds=new Set(state.queue.map((item)=>item.id));
+  state.queue=[];
+  await persist();
+  if (lastCaptureCheckpoint?.queueItemId && removedIds.has(lastCaptureCheckpoint.queueItemId)) {
+    await clearLastCaptureCheckpoint();
+  }
+  renderResearch();
 });
 
 chrome.runtime.onMessage.addListener((message)=>{
