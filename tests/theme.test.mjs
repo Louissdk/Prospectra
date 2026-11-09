@@ -19,7 +19,7 @@ test('keeps banner, preview and vector mark within the approved palette', async 
   for (const file of ['../docs/assets/banner.svg','../docs/assets/interface-preview.svg','../icons/prospectra-logo.svg']) {
     const svg = await readFile(new URL(file, import.meta.url), 'utf8');
     for (const color of palette) assert.ok(svg.toUpperCase().includes(color), file + ' is missing ' + color);
-    assert.doesNotMatch(svg, /#(?:73aaff|72dec9|6ed8ae|6ca8f7|71d7c7|74b3fc|77b2fb)\b/i, file + ' still contains legacy accent colors');
+    assert.doesNotMatch(svg, /#(?:73aaff|72dec9|6ed8ae|6ca8f7|71d7c7|74b3fc|77b2fb|091321|12253f|4684cf)\b/i, file + ' still contains legacy accent colors');
   }
 });
 
