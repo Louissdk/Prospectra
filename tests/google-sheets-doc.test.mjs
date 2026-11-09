@@ -82,7 +82,7 @@ test('Apps Script validates credentials before using the lock and safely upserts
       };}
     },
     PropertiesService:{getScriptProperties(){return {getProperty(name){return name==='PROSPECTRA_TOKEN'?'test-token':'';}};}},
-    SpreadsheetApp:{getActiveSpreadsheet(){
+    SpreadsheetApp:{flush(){},getActiveSpreadsheet(){
       spreadsheetLookups+=1;
       return {
         getSheetByName(name){return name==='Prospectra Leads'?sheet:null;},
