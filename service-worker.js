@@ -34,7 +34,7 @@ chrome.alarms?.onAlarm?.addListener(async (alarm) => {
     );
     for (const lead of due.slice(0, 15)) {
       const id = 'prospectra-followup-' + String(lead.id).replace(/[^a-z0-9_-]/gi, '').slice(0, 80);
-      chrome.notifications.create(id, {
+      await chrome.notifications.create(id, {
         type: 'basic',
         iconUrl: 'icons/icon128.png',
         title: 'Follow-up: ' + String(lead.name || 'Lead Prospectra').slice(0, 90),

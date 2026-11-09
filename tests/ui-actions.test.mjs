@@ -50,3 +50,12 @@ test('coverage panel exposes KML and GeoJSON exports disabled until coordinates 
   assert.match(source,/\$\('#exportGeoJsonButton'\)/);
   assert.match(source,/getGeolocatedLeads\(leads\)/);
 });
+
+test('follow-up reminders are marked notified only after Chrome confirms notification creation', async () => {
+  const worker = await readFile(new URL('../service-worker.js', import.meta.url), 'utf8');
+  const createAt = worker.indexOf('await chrome.notifications.create');
+  const markAt = worker.indexOf('lead.followUpNotifiedAt = new Date().toISOString()',createAt);
+  assert.ok(createAt>=0);
+  assert.ok(markAt>createAt);
+  assert.doesNotMatch(worker.slice(createAt,markAt),/lead\.followUpNotifiedAt\s*=/);
+});
