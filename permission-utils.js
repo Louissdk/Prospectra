@@ -6,7 +6,13 @@ export function enrichmentPermissionOrigins(items = []) {
     try {
       const url = new URL(String(item?.website || ''));
       if (!isPublicHttpUrl(url.href)) continue;
-      origins.add(url.origin + '/*');
+      const hostname = url.hostname.toLowerCase();
+      const withoutWww = hostname.replace(/^www\\./, '');
+      const withWww = hostname.startsWith('www.') ? hostname : 'www.' + hostname;
+      for (const host of new Set([hostname, withoutWww, withWww])) {
+        const origin = url.protocol + '//' + host + (url.port ? ':' + url.port : '');
+        origins.add(origin + '/*');
+      }
     } catch {}
   }
   if (origins.size) origins.add('https://dns.google/*');
