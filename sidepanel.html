@@ -17,7 +17,6 @@
           <div class="brand-subtitle">MAPS LEAD INTELLIGENCE</div>
         </div>
       </div>
-      <button id="settingsButton" class="icon-button" type="button" aria-label="Abrir configurações" title="Configurações">⚙</button>
     </header>
 
     <main>
@@ -113,7 +112,10 @@
             <div class="eyebrow">BASE DE PROSPECÇÃO</div>
             <h2>Seus leads <span id="listCount" class="count-chip">0</span></h2>
           </div>
-          <button id="refreshButton" class="icon-button small" type="button" title="Atualizar lista" aria-label="Atualizar lista">↻</button>
+          <div class="list-actions">
+            <button id="refreshButton" class="icon-button small" type="button" title="Atualizar lista" aria-label="Atualizar lista">↻</button>
+            <button id="clearButton" class="icon-button small clear-icon-button" type="button" title="Apagar todos os leads" aria-label="Apagar todos os leads">⌫</button>
+          </div>
         </div>
         <div class="toolbar">
           <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Buscar empresa, cidade, e-mail..."></label>
@@ -135,20 +137,11 @@
         <div class="export-row">
           <button id="exportXlsxButton" class="export-button" type="button" disabled><span>↓</span> Excel (.xlsx)</button>
           <button id="exportCsvButton" class="export-button export-secondary" type="button" disabled>CSV</button>
-          <button id="exportJsonButton" class="export-button export-secondary" type="button" disabled>JSON</button>
         </div>
       </section>
 
-      <section id="settingsPanel" class="settings-panel" hidden>
-        <div class="list-heading"><div><div class="eyebrow">PREFERÊNCIAS</div><h2>Configurações</h2></div><button id="closeSettingsButton" class="icon-button small" type="button" aria-label="Fechar configurações">×</button></div>
-        <div class="setting-row"><div><strong>Dados locais</strong><small>Os leads são armazenados neste perfil do Chrome.</small></div><span class="setting-state">ATIVO</span></div>
-        <div class="setting-row"><div><strong>Remover duplicados</strong><small>Empresas com o mesmo link do Maps são atualizadas, não repetidas.</small></div><span class="setting-state">ATIVO</span></div>
-        <div class="setting-row"><div><strong>Busca de e-mails</strong><small>Até três páginas públicas por site, respeitando timeout e limites.</small></div><span class="setting-state">ATIVO</span></div>
-        <button id="clearButton" class="danger-button" type="button">Apagar todos os leads salvos</button>
-        <p class="privacy-note">A extensão não envia sua lista para um servidor próprio. As consultas de enriquecimento são feitas diretamente aos sites públicos das empresas.</p>
-      </section>
     </main>
-    <footer class="footer"><span>PROSPECTRA 1.1.0</span><span>FEITO PARA PROSPECÇÃO RESPONSÁVEL</span></footer>
+    <footer class="footer"><span>PROSPECTRA 1.2.2</span><span>FEITO PARA PROSPECÇÃO RESPONSÁVEL</span></footer>
   </div>
   <script type="module" src="sidepanel.js"></script>
 </body>

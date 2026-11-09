@@ -121,3 +121,12 @@ O script usa `$PSScriptRoot`, portanto deve ser executado como arquivo `.ps1`, n
 - Corrigido o escopo da variável `opened` ao abrir fichas.
 - Quantidade `0` percorre os resultados disponíveis até a lista deixar de apresentar novos cartões; não é garantia de cobrir todo o índice do Google Maps.
 - Indicador adicional para empresas com telefone ou WhatsApp.
+
+
+## 1.2.2 — Coleta progressiva e painel simplificado
+
+- Leads são enviados ao painel em lotes de 3 durante a coleta e salvos progressivamente.
+- Tempo máximo para abrir uma ficha reduzido para 2,6 segundos; retorno à lista limitado a 2,4 segundos e executado apenas quando o feed desaparece.
+- O painel acusa perda de comunicação após 45 segundos sem atividade e preserva os leads previamente salvos.
+- Removida a exportação JSON e a seção de preferências sem controles funcionais.
+- A limpeza da lista foi movida para um botão ao lado do título dos leads.

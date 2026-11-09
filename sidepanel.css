@@ -113,18 +113,11 @@ h2 { margin: 5px 0 0; font-size: 17px; letter-spacing: -.45px; }
 .text-action:hover { color: var(--accent); }
 .enrich-button { width: 100%; height: 33px; margin-top: 10px; border: 1px solid rgba(124,224,208,.22); border-radius: 8px; background: rgba(124,224,208,.055); color: #8fe5d4; font-size: 9px; font-weight: 750; }
 .enrich-button:hover:not(:disabled) { background: rgba(124,224,208,.11); }
-.export-row { display: grid; grid-template-columns: 1.35fr .8fr .8fr; gap: 7px; margin-top: 10px; }
+.export-row { display: grid; grid-template-columns: 1.35fr .8fr; gap: 7px; margin-top: 10px; }
 .export-button { height: 36px; border: 1px solid rgba(105,169,255,.27); border-radius: 9px; background: rgba(105,169,255,.1); color: #9dc6ff; font-size: 10px; font-weight: 750; }
 .export-button span { font-size: 14px; margin-right: 4px; }
 .export-button:hover:not(:disabled) { background: rgba(105,169,255,.17); }
 .export-secondary { background: transparent; border-color: var(--stroke); color: #aab9d2; }
-.settings-panel { margin: 17px 0; padding: 14px; border: 1px solid var(--stroke); border-radius: 13px; background: #111a2e; }
-.setting-row { display: flex; justify-content: space-between; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--stroke); }
-.setting-row strong { display: block; font-size: 10px; }
-.setting-row small { display: block; color: var(--muted); font-size: 9px; line-height: 1.4; margin-top: 3px; }
-.setting-state { color: var(--good); font-size: 8px; font-weight: 800; letter-spacing: .8px; }
-.danger-button { width: 100%; margin-top: 13px; height: 34px; border: 1px solid rgba(255,127,138,.25); border-radius: 8px; background: rgba(255,127,138,.07); color: #ff9da5; font-size: 9px; font-weight: 700; }
-.privacy-note { margin: 10px 0 0; color: var(--muted-2); font-size: 8px; line-height: 1.5; }
 .footer { display: flex; justify-content: space-between; gap: 8px; color: #4e5e79; font-size: 7px; font-weight: 800; letter-spacing: .8px; padding: 17px 1px 2px; }
 @media (max-width: 430px) { .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 350px) { .app-shell { padding-inline: 11px; } .capture-card { padding: 13px; } .metrics-grid { gap: 5px; } .metric-card { padding-inline: 8px; } .toolbar { grid-template-columns: minmax(0,1fr) 93px; } }
@@ -140,7 +133,12 @@ h2 { margin: 5px 0 0; font-size: 17px; letter-spacing: -.45px; }
 .field-hint { display: block; color: var(--muted-2); font-size: 8px; line-height: 1.4; margin-top: 5px; min-height: 22px; }
 .rating { background: rgba(240,196,119,.13); color: #f0ce89; }
 .export-row .export-button { min-width: 0; padding-inline: 5px; font-size: 9px; }
-@media (max-width: 350px) { .capture-options-grid { grid-template-columns: 1fr; gap: 2px; } .field-hint { min-height: 0; } .export-row { grid-template-columns: 1fr 1fr; } .export-row .export-button:first-child { grid-column: 1 / -1; } }
+@media (max-width: 350px) { .capture-options-grid { grid-template-columns: 1fr; gap: 2px; } .field-hint { min-height: 0; } .export-row { grid-template-columns: 1.35fr .8fr; } }
 
 .progress-bar.indeterminate { width: 100%; background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 200% 100%; animation: prospectra-progress 1.4s linear infinite; }
 @keyframes prospectra-progress { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+
+.list-actions { display: flex; align-items: center; gap: 6px; }
+.clear-icon-button { color: #ff9da5; border-color: rgba(255,127,138,.25); }
+.clear-icon-button:hover { border-color: rgba(255,127,138,.65); color: #ffd2d5; }

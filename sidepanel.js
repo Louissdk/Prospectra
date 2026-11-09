@@ -196,7 +196,15 @@ function createCaptureWaiter(taskId) {
   let resolvePromise;
   let rejectPromise;
   let persistence = Promise.resolve();
+  let inactivityTimer = null;
   const items = [];
+  const armWatchdog = () => {
+    clearTimeout(inactivityTimer);
+    inactivityTimer = setTimeout(() => {
+      chrome.runtime.onMessage.removeListener(listener);
+      rejectPromise(new Error('A coleta perdeu comunicação com a aba do Google Maps por 45 segundos. Os leads já salvos foram preservados. Recarregue a aba do Maps e tente novamente.'));
+    }, 45000);
+  };
   const promise = new Promise((resolve, reject) => {
     resolvePromise = resolve;
     rejectPromise = reject;
@@ -204,6 +212,7 @@ function createCaptureWaiter(taskId) {
 
   const listener = (message) => {
     if (!message || message.taskId !== taskId) return;
+    armWatchdog();
 
     if (message.type === 'PROSPECTRA_CAPTURE_BATCH') {
       const batch = Array.isArray(message.items) ? message.items : [];
@@ -221,6 +230,7 @@ function createCaptureWaiter(taskId) {
     }
 
     if (message.type === 'PROSPECTRA_CAPTURE_COMPLETE') {
+      clearTimeout(inactivityTimer);
       chrome.runtime.onMessage.removeListener(listener);
       persistence.then(() => {
         if (message.ok) resolvePromise({ ...message, items });
@@ -230,7 +240,14 @@ function createCaptureWaiter(taskId) {
   };
 
   chrome.runtime.onMessage.addListener(listener);
-  return { promise, cancel: () => chrome.runtime.onMessage.removeListener(listener) };
+  armWatchdog();
+  return {
+    promise,
+    cancel: () => {
+      clearTimeout(inactivityTimer);
+      chrome.runtime.onMessage.removeListener(listener);
+    }
+  };
 }
 
 async function capture(mode) {
@@ -373,7 +390,6 @@ function render() {
   $('#listCount').textContent = total.toLocaleString('pt-BR');
   $('#exportXlsxButton').disabled = !total;
   $('#exportCsvButton').disabled = !total;
-  $('#exportJsonButton').disabled = !total;
   $('#enrichButton').disabled = !leads.some((lead) => lead.website && !lead.emails.length) || busy;
   const filtered = leads.filter((lead) => {
     const haystack = [lead.name, lead.category, lead.phone, lead.city, lead.searchTerm, lead.address, lead.website, lead.whatsappUrl, ...lead.emails].join(' ').toLowerCase();
@@ -422,11 +438,6 @@ function exportCsv() {
   setStatus(`CSV preparado com ${leads.length} lead(s).`, 'success');
 }
 
-function exportJson() {
-  if (!leads.length) return;
-  downloadFile(`prospectra-leads-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(leads, null, 2), 'application/json');
-  setStatus('Arquivo JSON preparado para exportação.', 'success');
-}
 
 async function enrichExisting() {
   if (busy) return;
@@ -464,10 +475,7 @@ $('#filterSelect').addEventListener('change', render);
 $('#refreshButton').addEventListener('click', loadLeads);
 $('#exportXlsxButton').addEventListener('click', exportXlsx);
 $('#exportCsvButton').addEventListener('click', exportCsv);
-$('#exportJsonButton').addEventListener('click', exportJson);
 $('#enrichButton').addEventListener('click', enrichExisting);
-$('#settingsButton').addEventListener('click', () => { $('#settingsPanel').hidden = !$('#settingsPanel').hidden; });
-$('#closeSettingsButton').addEventListener('click', () => { $('#settingsPanel').hidden = true; });
 $('#clearButton').addEventListener('click', async () => {
   if (!leads.length) return;
   if (!confirm('Apagar todos os leads salvos neste navegador? Esta ação não pode ser desfeita.')) return;

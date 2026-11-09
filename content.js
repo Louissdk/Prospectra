@@ -13,6 +13,19 @@
       taskId: activeCaptureTaskId
     }).catch(() => {});
   }
+
+  async function sendCaptureBatch(items) {
+    if (!activeCaptureTaskId || !items?.length) return;
+    try {
+      await chrome.runtime.sendMessage({
+        type: 'PROSPECTRA_CAPTURE_BATCH',
+        taskId: activeCaptureTaskId,
+        items
+      });
+    } catch (error) {
+      console.warn('[Prospectra] Não foi possível transmitir um lote agora:', error);
+    }
+  }
   const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
   const absolute = (value) => {
     try { return new URL(value, location.href).href; } catch { return ''; };
@@ -177,7 +190,7 @@
     };
   }
 
-  async function waitForDetail(previousUrl, expectedName, timeout = 6500) {
+  async function waitForDetail(previousUrl, expectedName, timeout = 2600) {
     const started = Date.now();
     while (Date.now() - started < timeout) {
       const heading = detailRoot().querySelector('h1');
@@ -203,8 +216,8 @@
     else if (location.href !== previousUrl) {
       try { history.back(); } catch {}
     }
-    for (let i = 0; i < 45; i += 1) {
-      await sleep(200);
+    for (let i = 0; i < 16; i += 1) {
+      await sleep(150);
       if (getFeed()) return true;
     }
     return !!getFeed();
@@ -235,6 +248,7 @@
     let filteredOut = 0;
     let stagnantRounds = 0;
     let scrollRounds = 0;
+    let sentCount = 0;
 
     // Processa cada lote visível e avança a lista para forçar o carregamento progressivo do Maps.
     while ((unlimited || collected.length < maxLeads) && scrollRounds < (unlimited ? 2000 : 140) && stagnantRounds < 4) {
@@ -274,11 +288,19 @@
           } catch (error) {
             details.captureNote = error?.message || 'Não foi possível abrir a ficha da empresa.';
           }
-          if (opened || getFeed() === null || location.href !== previousUrl) await returnToResults(previousUrl);
+          // O Maps pode manter o feed montado por trás da ficha.
+          // Só volta no histórico quando a lista realmente desaparece.
+          if (!getFeed()) await returnToResults(previousUrl);
         } else {
           details.captureNote = 'O cartão saiu da lista antes da abertura da ficha.';
         }
         collected.push(details);
+
+        // Envia lotes pequenos durante a coleta, em vez de esperar todas as fichas.
+        if (collected.length - sentCount >= 3) {
+          await sendCaptureBatch(collected.slice(sentCount, collected.length));
+          sentCount = collected.length;
+        }
       }
 
       if (collected.length >= maxLeads) break;
@@ -303,8 +325,12 @@
       else stagnantRounds += 1;
     }
 
+    if (sentCount < collected.length) {
+      await sendCaptureBatch(collected.slice(sentCount));
+      sentCount = collected.length;
+    }
     reportProgress({ done: collected.length + filteredOut, total: Number.isFinite(maxLeads) ? maxLeads : 0, name: 'Coleta concluída' });
-    return { items: collected, filteredOut, scanned: processed.size, requested: unlimited ? 0 : maxLeads };
+    return { items: collected, sentCount, filteredOut, scanned: processed.size, requested: unlimited ? 0 : maxLeads };
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -330,14 +356,12 @@
         return captureVisibleBusinesses(message.limit, message.minRating, context);
       }).then(async (result) => {
         const items = Array.isArray(result.items) ? result.items : [];
-        for (let offset = 0; offset < items.length; offset += 20) {
-          await chrome.runtime.sendMessage({
-            type: 'PROSPECTRA_CAPTURE_BATCH',
-            taskId,
-            items: items.slice(offset, offset + 20)
-          });
+        if (Number(result.sentCount || 0) < items.length) {
+          for (let offset = Number(result.sentCount || 0); offset < items.length; offset += 3) {
+            await sendCaptureBatch(items.slice(offset, offset + 3));
+          }
         }
-        const { items: _items, ...summary } = result;
+        const { items: _items, sentCount: _sentCount, ...summary } = result;
         await chrome.runtime.sendMessage({
           type: 'PROSPECTRA_CAPTURE_COMPLETE',
           taskId,
