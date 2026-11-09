@@ -9,6 +9,7 @@
 - [x] Executar npm run verify em Node.js 20+.
 - [x] Confirmar que o workflow GitHub Actions ficou verde.
 - [x] Confirmar que o job package gerou o ZIP limpo e que manifest.json está na raiz do arquivo.
+- [x] Executar migração, grants e testes RLS em PostgreSQL 17 descartável no CI.
 - [ ] Instalar a pasta em um perfil Chrome limpo (pendente de validação manual em Chrome estável).
 - [ ] Testar migração de uma base de versão anterior.
 - [ ] Testar interrupção da coleta, persistência do checkpoint e retomada pela fila sem duplicar os leads salvos.
@@ -17,7 +18,7 @@
 - [ ] Confirmar que restaurar backup descarta o checkpoint da sessão anterior.
 - [ ] Confirmar que remover uma pesquisa da fila ou limpar a fila invalida apenas o checkpoint vinculado a ela.
 - [ ] Confirmar que apagar a base remove leads, interações, pesquisas, bloqueios, diagnósticos e checkpoint, preservando as configurações de integração.
-- [ ] Testar Google Sheets e Supabase em projetos/planilhas reais de homologação (não executado pelo CI).
+- [ ] Testar Google Sheets em planilha real de homologação e Supabase com Auth/Data API reais. O CI valida o Apps Script por VM e SQL/RLS em PostgreSQL 17, mas não acessa as contas externas.
 - [ ] Testar opções de Não contatar e follow-up, inclusive remover o bloqueio e confirmar que uma captura Maps posterior não restaura o bloqueio.
 - [ ] Testar validação de CNPJ numérico e alfanumérico com exemplos conhecidos da Receita Federal.
 - [ ] Revisar permissões do Manifest e mensagens de consentimento.

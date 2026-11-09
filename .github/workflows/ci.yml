@@ -15,7 +15,19 @@ jobs:
   verify:
     name: Validar extensão e testes
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,6 +48,22 @@ jobs:
 
       - name: Validar Manifest V3, arquivos e interface
         run: npm run validate
+
+      - name: Instalar cliente PostgreSQL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Testar migração, grants e RLS em PostgreSQL 17
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/sql/supabase-bootstrap.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f docs/supabase/schema.sql
+          # A migração precisa ser reexecutável em projetos já atualizados.
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f docs/supabase/schema.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/sql/supabase-rls-integration.sql
 
   chromium-e2e:
     name: Captura em Chromium real
