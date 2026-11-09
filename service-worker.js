@@ -17,18 +17,19 @@ async function configureActionBehavior() {
   try { await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }); }
   catch (error) { console.error('[Prospectra] Não foi possível configurar o clique do ícone:', error); }
 }
-async function openProspectraFromAction(tab) {
-  try {
-    let target = tab;
-    if (!target?.id || !isGoogleMapsUrl(target.url || '')) {
-      target = await chrome.tabs.create({ url: 'https://www.google.com/maps', active: true });
-    } else if (!target.active) {
-      target = await chrome.tabs.update(target.id, { active: true });
-    }
-    if (target?.id) await chrome.sidePanel.open({ tabId: target.id });
-  } catch (error) { console.error('[Prospectra] Não foi possível abrir o Maps e o painel:', error); }
+function openProspectraFromAction(tab) {
+  // Open synchronously inside the action-click gesture; create the Maps tab afterwards.
+  if (Number.isInteger(tab?.windowId)) {
+    void chrome.sidePanel.open({ windowId: tab.windowId }).catch((error) => {
+      console.error('[Prospectra] Não foi possível abrir o painel:', error);
+    });
+  }
+  if (tab?.id && isGoogleMapsUrl(tab.url || '')) return;
+  void chrome.tabs.create({ url: 'https://www.google.com/maps', active: true }).catch((error) => {
+    console.error('[Prospectra] Não foi possível abrir o Google Maps:', error);
+  });
 }
-chrome.action?.onClicked?.addListener((tab) => { void openProspectraFromAction(tab); });
+chrome.action?.onClicked?.addListener(openProspectraFromAction);
 chrome.runtime.onInstalled.addListener(() => { void configureActionBehavior(); ensureFollowUpAlarm(); });
 chrome.runtime.onStartup.addListener(() => { void configureActionBehavior(); ensureFollowUpAlarm(); });
 chrome.alarms?.onAlarm?.addListener(async (alarm) => {

@@ -858,7 +858,6 @@ async function searchMaps() {
       await chrome.tabs.update(active.id,{url,active:true});
       tab=await chrome.tabs.get(active.id);
     } else tab=await chrome.tabs.create({url,active:true});
-    try { await chrome.sidePanel.open({tabId:tab.id}); } catch {}
     const readiness=await waitForMapsPageReadiness(tab.id,{timeout:45000});
     if(readiness?.ready) {
       setStatus(readiness.pageType==='detail'?'Ficha identificada. O botão “Ficha aberta” está liberado.':'Pesquisa pronta. Foram identificadas '+Number(readiness.businessLinks||0)+' ficha(s); você já pode iniciar a coleta.','success');

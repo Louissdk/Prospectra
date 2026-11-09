@@ -7,8 +7,9 @@ const manifest=JSON.parse(await readFile(new URL('../manifest.json',import.meta.
 
 test('clicking the toolbar icon opens Google Maps and the Prospectra side panel',()=>{
   assert.match(worker,/chrome\.action\?\.onClicked\?\.addListener/);
+  assert.match(worker,/chrome\.sidePanel\.open\(\{ windowId: tab\.windowId \}\)/);
   assert.match(worker,/chrome\.tabs\.create\(\{ url: 'https:\/\/www\.google\.com\/maps', active: true \}\)/);
-  assert.match(worker,/chrome\.sidePanel\.open\(\{ tabId: target\.id \}\)/);
+  assert.ok(worker.indexOf('chrome.sidePanel.open({ windowId: tab.windowId })') < worker.indexOf("chrome.tabs.create({ url: 'https://www.google.com/maps'"));
   assert.match(worker,/openPanelOnActionClick: false/);
 });
 
