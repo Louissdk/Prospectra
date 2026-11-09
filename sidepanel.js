@@ -435,8 +435,11 @@ async function importFile(file) {
     const existing=leads.length;
     leads=mergeLeadRecords(leads,(backup.leads||[]).map(normalizeCurrentLead),MAX_LEADS);
     state={...state,...backup,leads};
+    state.queue=(state.queue||[]).map((item)=>item.status==='running'?{...item,status:'interrupted',message:'Backup restaurado; execute novamente para retomar.'}:item);
     await persist();
-    setStatus('Backup restaurado e mesclado: ' + (leads.length-existing) + ' novo(s) registro(s).','success');
+    await clearLastCaptureCheckpoint();
+    renderResearch();
+    setStatus('Backup restaurado e mesclado: ' + (leads.length-existing) + ' novo(s) registro(s). O checkpoint anterior foi removido.','success');
     return;
   }
   if (filename.endsWith('.csv')) imported=parseCsv(await file.text());

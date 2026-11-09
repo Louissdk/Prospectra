@@ -80,6 +80,7 @@ A sincronização lê a nuvem em páginas de até 1.000 registros, com limite de
 
 - Testes unitários de normalização, CNPJ, Place ID, deduplicação, score e exportações.
 - Testes simulados com jsdom para fluxo de abertura, leitura, retorno e tela de limitação.
+- Testes de banco usam fake-indexeddb para simular migração, gravação em lote, checkpoint independente e limpeza do IndexedDB no Node.js.
 - GitHub Actions executa verificação sintática, testes e validação do Manifest V3.
 
 Os testes usam DOM simulado e não garantem que os seletores continuem funcionando em todas as versões reais do Google Maps.

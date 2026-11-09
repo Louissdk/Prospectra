@@ -13,6 +13,8 @@ const styles = await readFile('sidepanel.css', 'utf8');
 const sidepanel = await readFile('sidepanel.js', 'utf8');
 const worker = await readFile('service-worker.js', 'utf8');
 
+if (!pkg.devDependencies?.['fake-indexeddb']) errors.push('fake-indexeddb deve estar listado nas dependências de desenvolvimento para testar o banco local.');
+if (!(await exists('tests/db-indexeddb.test.mjs'))) errors.push('Teste de persistência IndexedDB ausente.');
 if (manifest.manifest_version !== 3) errors.push('A extensão precisa usar Manifest V3.');
 if (manifest.version !== pkg.version) errors.push('A versão do package.json deve ser igual à versão do manifest.json.');
 if (!manifest.background?.service_worker || manifest.background.type !== 'module') errors.push('Service worker ES module não configurado.');

@@ -100,7 +100,7 @@ Requer Git e Node.js 20.12 ou superior para executar os testes de importação X
 ~~~powershell
 git clone https://github.com/Louissdk/Prospectra.git
 cd Prospectra
-npm install --no-save --no-package-lock jsdom@26.1.0
+npm install fake-indexeddb@6.2.8
 npm run check
 npm test
 ~~~

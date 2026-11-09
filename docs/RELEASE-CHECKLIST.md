@@ -13,6 +13,9 @@
 - [ ] Testar interrupção da coleta, persistência do checkpoint e retomada pela fila sem duplicar os leads salvos.
 - [ ] Testar coleta manual controlada no Maps.
 - [ ] Testar backup e restauração.
+- [ ] Confirmar que restaurar backup descarta o checkpoint da sessão anterior.
+- [ ] Confirmar que remover uma pesquisa da fila ou limpar a fila invalida apenas o checkpoint vinculado a ela.
+- [ ] Confirmar que apagar a base remove leads, interações, pesquisas, bloqueios, diagnósticos e checkpoint, preservando as configurações de integração.
 - [ ] Testar Google Sheets e Supabase em ambientes próprios de teste.
 - [ ] Testar opções de Não contatar e follow-up.
 - [ ] Testar validação de CNPJ numérico e alfanumérico com exemplos conhecidos da Receita Federal.

@@ -20,6 +20,12 @@ Todas as alterações importantes do Prospectra são registradas neste arquivo.
 - Place ID extraído quando presente e deduplicação por identificadores, URLs e dados de contato.
 - Testes de fluxo com DOM simulado para abertura, leitura, retorno, persistência e bloqueio.
 
+### Integridade dos dados
+- Limpeza total remove também checkpoints e diagnósticos, preservando as configurações de integração.
+- Ações da fila para remover pesquisas e adicionar pesquisas salvas são tratadas antes da busca por um lead.
+- Restauração de backup converte tarefas em execução para interrompidas e descarta checkpoints da sessão anterior.
+- Testes de IndexedDB cobrem migração do legado, persistência de lotes, checkpoints e limpeza do banco.
+
 ### Dados e enriquecimento
 - Migração automática dos leads do Chrome Storage para IndexedDB.
 - Estrutura de contatos múltiplos e classificação de telefone/e-mail.
