@@ -72,12 +72,12 @@ jobs:
           POSTGREST_URL: http://127.0.0.1:3000
         run: |
           set -euo pipefail
-          docker run --rm -d --name prospectra-postgrest --network host \\
-            -e PGRST_DB_URI="$DATABASE_URL" \\
-            -e PGRST_DB_SCHEMAS=public \\
-            -e PGRST_DB_ANON_ROLE=anon \\
-            -e PGRST_JWT_SECRET="$PGRST_JWT_SECRET" \\
-            -e PGRST_SERVER_PORT=3000 \\
+          docker run --rm -d --name prospectra-postgrest --network host \
+            -e PGRST_DB_URI="$DATABASE_URL" \
+            -e PGRST_DB_SCHEMAS=public \
+            -e PGRST_DB_ANON_ROLE=anon \
+            -e PGRST_JWT_SECRET="$PGRST_JWT_SECRET" \
+            -e PGRST_SERVER_PORT=3000 \
             postgrest/postgrest:v16.5
           cleanup() { docker stop prospectra-postgrest >/dev/null 2>&1 || true; }
           trap cleanup EXIT
