@@ -46,3 +46,13 @@ test('rejects invalid tombstones and caps the tombstone history', () => {
   assert.equal(mergeDeletionTombstones([{identityKey:'x',deletedAt:'2026-11-09T10:00:00Z'}]).length,1);
   assert.equal(MAX_DELETION_TOMBSTONES,10000);
 });
+
+test('creates deletion tombstones with the lead identity and aliases', () => {
+  const tombstone = createDeletionTombstone({
+    id:'lead-9',identityKey:'place:ChIJ-9',placeId:'ChIJ-9',name:'Empresa 9',phone:'+5511999999999'
+  },'2026-11-09T12:00:00Z');
+  assert.equal(tombstone.id,'lead-9');
+  assert.equal(tombstone.identityKey,'place:ChIJ-9');
+  assert.ok(tombstone.aliases.includes('place:ChIJ-9'));
+  assert.equal(tombstone.deletedAt,'2026-11-09T12:00:00.000Z');
+});

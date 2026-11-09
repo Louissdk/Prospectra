@@ -10,7 +10,7 @@ import { loadAppState, saveAppState, createBackup, validateBackup, loadCaptureCh
 import { normalizeSupabaseProjectUrl, parsePostgrestTotal, buildRangeHeader, isGoogleMapsUrl } from './cloud-utils.js';
 import { enrichmentPermissionOrigins } from './permission-utils.js';
 import { classifyQueueOutcome, summarizeQueueOutcomes } from './queue-utils.js';
-import { MAX_DELETION_TOMBSTONES, normalizeDeletionTombstone, mergeDeletionTombstones, applyDeletionTombstones, pruneSupersededTombstones, buildSupabaseSyncRows } from './sync-utils.js';
+import { MAX_DELETION_TOMBSTONES, normalizeDeletionTombstone, createDeletionTombstone, mergeDeletionTombstones, applyDeletionTombstones, pruneSupersededTombstones, buildSupabaseSyncRows } from './sync-utils.js';
 
 const $ = (selector) => document.querySelector(selector);
 const PAGE_SIZE = 50;
@@ -350,12 +350,7 @@ async function handleLeadAction(action,id) {
     if (!confirm('Excluir "' + lead.name + '" da base? A exclusão será propagada para os outros dispositivos na próxima sincronização Supabase.')) return;
     const identityKey = lead.identityKey || identityKeyForLead(lead);
     if (!identityKey) { setStatus('Não foi possível gerar uma identidade segura para este lead.','error'); return; }
-    const tombstone = normalizeDeletionTombstone({
-      id:lead.id,
-      identityKey,
-      aliases:captureLeadAliases(lead),
-      deletedAt:new Date().toISOString()
-    });
+    const tombstone = createDeletionTombstone({ ...lead, identityKey });
     state.deletedLeadKeys = mergeDeletionTombstones(state.deletedLeadKeys || [], [tombstone]);
     leads = leads.filter((item) => item.id !== id);
     state.leads = leads;
@@ -1209,17 +1204,23 @@ $('#importFile').addEventListener('change',async(event)=>{
 });
 $('#clearButton').addEventListener('click',async()=>{
   if (busy || queueRunning) {setStatus('Finalize ou cancele a operação atual antes de apagar a base.','warning');return;}
-  if (!confirm('Excluir permanentemente todos os leads, interações, pesquisas, fila, bloqueios de contato e diagnósticos deste navegador? Faça um backup antes.')) return;
-  leads=[];
-  state.activities=[];
-  state.searches=[];
-  state.queue=[];
-  state.doNotContact=[];
-  state.diagnostics=[];
-  await persist();
-  await clearLastCaptureCheckpoint();
-  renderResearch();
-  setStatus('Base local e checkpoint de coleta excluídos. Configurações de integração foram preservadas.','success');
+  if (!confirm('Excluir permanentemente todos os leads e dados comerciais deste navegador? Se o Supabase estiver conectado, as exclusões dos leads também serão propagadas na próxima sincronização. Faça um backup antes.')) return;
+  try {
+    const deleted=leads.map((lead)=>createDeletionTombstone(lead)).filter(Boolean);
+    state.deletedLeadKeys=mergeDeletionTombstones(state.deletedLeadKeys||[],deleted);
+    leads=[];
+    state.activities=[];
+    state.searches=[];
+    state.queue=[];
+    state.doNotContact=[];
+    state.diagnostics=[];
+    await persist();
+    await clearLastCaptureCheckpoint();
+    renderResearch();
+    setStatus('Base local limpa. '+deleted.length+' exclusão(ões) foi/foram preservada(s) para sincronização Supabase. Configurações de integração foram mantidas.','success');
+  } catch(error) {
+    setStatus('Não foi possível limpar a base: '+(error?.message||'falha ao preservar exclusões'),'error');
+  }
 });
 $('#saveProfileButton').addEventListener('click',saveProfile);
 $('#followUpNotifications').addEventListener('change',async(event)=>{

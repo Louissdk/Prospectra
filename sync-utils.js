@@ -2,6 +2,17 @@ import { captureLeadAliases } from './capture-utils.js';
 
 export const MAX_DELETION_TOMBSTONES = 10000;
 
+export function createDeletionTombstone(lead = {}, deletedAt = new Date().toISOString()) {
+  const identityKey = String(lead.identityKey || '').trim();
+  if (!identityKey) return null;
+  return normalizeDeletionTombstone({
+    id:lead.id,
+    identityKey,
+    aliases:captureLeadAliases(lead),
+    deletedAt
+  });
+}
+
 export function normalizeDeletionTombstone(value = {}) {
   const identityKey = String(value.identityKey || value.identity_key || '').trim();
   const timestamp = Date.parse(value.deletedAt || value.deleted_at || '');
