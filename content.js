@@ -123,6 +123,23 @@
       businessLinks: getResultAnchors(document).length
     };
   }
+  function getMapsPageReadiness() {
+    const isMaps = validMapsTab();
+    if (!isMaps) return { ok:true,isMaps:false,ready:false,isBlocked:false,pageType:'unsupported',businessLinks:0,message:'Esta aba não é uma página oficial do Google Maps.' };
+    const isBlocked = detectMapsRestriction();
+    const path = String(location.pathname || '').toLowerCase();
+    const heading = clean(detailRoot().querySelector('h1')?.textContent || '');
+    const isOpenDetail = path.includes('/maps/place/') && heading.length > 1;
+    const diagnostics = getResultDiagnostics();
+    const hasSearchResults = diagnostics.businessLinks > 0 && diagnostics.visibleContainers > 0;
+    const pageType = isBlocked ? 'blocked' : isOpenDetail ? 'detail' : hasSearchResults ? 'search' : 'loading';
+    const ready = !isBlocked && (isOpenDetail || hasSearchResults);
+    let message = 'Aguardando os cartões de empresas aparecerem no Google Maps.';
+    if (isBlocked) message = 'O Google Maps apresentou uma verificação ou limitação de acesso.';
+    else if (isOpenDetail) message = 'Ficha de empresa detectada: ' + heading + '.';
+    else if (hasSearchResults) message = diagnostics.businessLinks + ' ficha(s) de empresa detectada(s).';
+    return { ok:true,isMaps,ready,isBlocked,pageType,businessName:heading,businessLinks:diagnostics.businessLinks,visibleContainers:diagnostics.visibleContainers,url:location.href,title:document.title,readyState:document.readyState,message };
+  }
 
   function getFeed() {
     const candidates = new Set();
@@ -823,6 +840,10 @@
     if (message?.type === 'PROSPECTRA_CAPTURE_RESUME' && message.taskId === activeCaptureTaskId) {
       activeCapturePaused = false;
       sendResponse({ ok: true, paused: false });
+      return false;
+    }
+    if (message?.type === 'PROSPECTRA_MAPS_READINESS') {
+      sendResponse(getMapsPageReadiness());
       return false;
     }
     if (message?.type === 'PROSPECTRA_DIAGNOSTICS') {

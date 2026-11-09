@@ -98,3 +98,50 @@ test('stops safely when Maps presents a traffic verification screen', async () =
   assert.equal(sent.some((message)=>message.type==='PROSPECTRA_CAPTURE_BATCH'),false);
   assert.ok(sent.some((message)=>message.type==='PROSPECTRA_SAVE_CHECKPOINT' && message.checkpoint?.status==='interrupted'));
 });
+
+
+test('reports search results as ready before enabling visible collection', async () => {
+  const dom=new JSDOM('<!doctype html><html><head><title>Maps readiness fixture</title></head><body><main role="main">'+resultsMarkup+'</main></body></html>',{
+    url:'https://www.google.com/maps/search/clinicas+guarulhos',
+    runScripts:'outside-only',
+    pretendToBeVisual:true
+  });
+  const {window}=dom;
+  let listener=null;
+  window.HTMLElement.prototype.getClientRects=function(){return [{width:240,height:60}];};
+  window.chrome={runtime:{
+    onMessage:{addListener(fn){listener=fn;}},
+    sendMessage(){return Promise.resolve({ok:true});}
+  }};
+  window.eval(contentScript);
+  let readiness=null;
+  listener({type:'PROSPECTRA_MAPS_READINESS'},{},(value)=>{readiness=value;});
+  assert.equal(readiness?.ok,true);
+  assert.equal(readiness?.isMaps,true);
+  assert.equal(readiness?.ready,true);
+  assert.equal(readiness?.pageType,'search');
+  assert.ok(readiness.businessLinks>0);
+  dom.window.close();
+});
+
+test('recognizes an open Maps business detail separately from a search result list', async () => {
+  const dom=new JSDOM('<!doctype html><html><head><title>Empresa Exemplo</title></head><body><main role="main"><h1>Empresa Exemplo</h1><button data-item-id="address">Rua das Flores, 10</button></main></body></html>',{
+    url:'https://www.google.com/maps/place/Empresa+Exemplo/data=!4m2',
+    runScripts:'outside-only',
+    pretendToBeVisual:true
+  });
+  const {window}=dom;
+  let listener=null;
+  window.HTMLElement.prototype.getClientRects=function(){return [{width:240,height:60}];};
+  window.chrome={runtime:{
+    onMessage:{addListener(fn){listener=fn;}},
+    sendMessage(){return Promise.resolve({ok:true});}
+  }};
+  window.eval(contentScript);
+  let readiness=null;
+  listener({type:'PROSPECTRA_MAPS_READINESS'},{},(value)=>{readiness=value;});
+  assert.equal(readiness?.ready,true);
+  assert.equal(readiness?.pageType,'detail');
+  assert.equal(readiness?.businessName,'Empresa Exemplo');
+  dom.window.close();
+});

@@ -3,6 +3,7 @@ import { readLimitedTextBody } from './http-utils.js';
 import { extractCnpj, extractPhones, extractPublicProfiles, classifyEmail, isDoNotContact } from './crm-utils.js';
 import { mergeLeadRecords } from './capture-utils.js';
 import { loadAppState, saveAppState, saveLeadBatch, saveCaptureCheckpoint, clearCaptureCheckpoint } from './db.js';
+import { isGoogleMapsUrl } from './cloud-utils.js';
 
 async function ensureFollowUpAlarm() {
   try {
@@ -12,16 +13,24 @@ async function ensureFollowUpAlarm() {
     console.warn('[Prospectra] Alarmes de follow-up indisponíveis:', error);
   }
 }
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error) => {
-    console.error('[Prospectra] Não foi possível configurar o painel lateral:', error);
-  });
-  ensureFollowUpAlarm();
-});
-chrome.runtime.onStartup.addListener(() => {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
-  ensureFollowUpAlarm();
-});
+async function configureActionBehavior() {
+  try { await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }); }
+  catch (error) { console.error('[Prospectra] Não foi possível configurar o clique do ícone:', error); }
+}
+async function openProspectraFromAction(tab) {
+  try {
+    let target = tab;
+    if (!target?.id || !isGoogleMapsUrl(target.url || '')) {
+      target = await chrome.tabs.create({ url: 'https://www.google.com/maps', active: true });
+    } else if (!target.active) {
+      target = await chrome.tabs.update(target.id, { active: true });
+    }
+    if (target?.id) await chrome.sidePanel.open({ tabId: target.id });
+  } catch (error) { console.error('[Prospectra] Não foi possível abrir o Maps e o painel:', error); }
+}
+chrome.action?.onClicked?.addListener((tab) => { void openProspectraFromAction(tab); });
+chrome.runtime.onInstalled.addListener(() => { void configureActionBehavior(); ensureFollowUpAlarm(); });
+chrome.runtime.onStartup.addListener(() => { void configureActionBehavior(); ensureFollowUpAlarm(); });
 chrome.alarms?.onAlarm?.addListener(async (alarm) => {
   if (alarm.name !== 'prospectra-followups') return;
   try {

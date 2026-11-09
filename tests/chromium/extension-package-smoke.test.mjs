@@ -35,6 +35,10 @@ if(!chromePath || !extensionDir) {
       await page.goto('chrome-extension://'+extensionId+'/sidepanel.html',{waitUntil:'domcontentloaded'});
       await page.waitForSelector('.app-shell',{timeout:10000});
       await page.waitForSelector('#statusMessage',{timeout:10000});
+      await page.waitForSelector('#mapsReadiness',{timeout:10000});
+      const initialCaptureState=await page.evaluate(()=>({visible:document.querySelector('#captureButton')?.disabled,open:document.querySelector('#captureOpenButton')?.disabled}));
+      assert.equal(initialCaptureState.visible,true,'A coleta por lista deve começar bloqueada sem resultados confirmados.');
+      assert.equal(initialCaptureState.open,true,'A captura individual deve começar bloqueada sem ficha detectada.');
 
       const app=await page.evaluate(()=>{
         const manifest=chrome.runtime.getManifest();

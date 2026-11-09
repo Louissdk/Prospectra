@@ -59,3 +59,24 @@ test('follow-up reminders are marked notified only after Chrome confirms notific
   assert.ok(markAt>createAt);
   assert.doesNotMatch(worker.slice(createAt,markAt),/lead\.followUpNotifiedAt\s*=/);
 });
+
+
+test('keeps collection buttons locked until Maps readiness is confirmed', async () => {
+  const html=await readFile(new URL('../sidepanel.html', import.meta.url),'utf8');
+  assert.match(html,/id="mapsReadiness"/);
+  assert.match(html,/id="captureButton"[^>]*disabled/);
+  assert.match(html,/id="captureOpenButton"[^>]*disabled/);
+  assert.match(source,/function mapsModeReady\(mode\)/);
+  assert.match(source,/mapsReadinessState\.status !== 'ready'/);
+  assert.match(source,/PROSPECTRA_MAPS_READINESS/);
+  assert.match(source,/Pesquisa pronta para coleta/);
+});
+
+test('the Maps search action waits for detected business cards instead of reporting immediate success', () => {
+  const start=source.indexOf('async function searchMaps()');
+  const end=source.indexOf('async function waitForTabReady',start);
+  const handler=source.slice(start,end);
+  assert.match(handler,/waitForMapsPageReadiness/);
+  assert.match(handler,/readiness\.businessLinks/);
+  assert.doesNotMatch(handler,/setStatus\('Pesquisa aberta no Google Maps\. Aguarde os resultados aparecerem\.'\s*,\s*'success'\)/);
+});
