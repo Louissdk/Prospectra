@@ -35,3 +35,32 @@ jobs:
 
       - name: Validar Manifest V3, arquivos e interface
         run: npm run validate
+
+  chromium-e2e:
+    name: Captura em Chromium real
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar Chromium para testes
+        uses: browser-actions/setup-chrome@v2
+        id: setup-chrome
+        with:
+          chrome-version: 148.0.7778.97
+          install-dependencies: true
+
+      - name: Instalar dependências
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Executar teste de captura no navegador
+        env:
+          CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
+        run: npm run test:chromium

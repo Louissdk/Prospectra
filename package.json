@@ -10,10 +10,12 @@
     "check": "node --check checkpoint-utils.js && node --check permission-utils.js && node --check sync-utils.js && node --check geo-utils.js && node --check queue-utils.js && node --check cloud-utils.js && node --check contact-utils.js && node --check service-worker.js && node --check content.js && node --check sidepanel.js && node --check workbook.js && node --check capture-utils.js && node --check crm-utils.js && node --check db.js && node --check spreadsheet-import.js && node --check scripts/validate-extension.mjs",
     "test": "node --test tests/*.test.mjs tests/e2e/*.test.mjs",
     "validate": "node scripts/validate-extension.mjs",
-    "verify": "npm run check && npm test && npm run validate"
+    "verify": "npm run check && npm test && npm run validate",
+    "test:chromium": "node --test tests/chromium/*.test.mjs"
   },
   "devDependencies": {
     "jsdom": "^26.1.0",
-    "fake-indexeddb": "^6.2.8"
+    "fake-indexeddb": "^6.2.8",
+    "puppeteer-core": "24.43.1"
   }
 }

@@ -93,3 +93,7 @@ Os testes usam DOM simulado e não garantem que os seletores continuem funcionan
 ## Cobertura geográfica
 
 O painel desenha uma visualização proporcional em latitude/longitude para leads com coordenadas extraídas da URL da ficha do Maps. Ela é um gráfico de pontos, não um mapa-base cartográfico. KML e GeoJSON exportam os pontos para Google Earth e ferramentas GIS. Leads sem coordenadas não recebem uma posição estimada a partir do centro da cidade.
+
+## Teste de navegador
+
+O CI executa também um teste Chromium real do content script em uma página de ficha Maps controlada. Ele valida execução no motor do Chrome, comunicação simulada com as APIs da extensão, extração de telefone/site e captura de coordenadas da URL. Esse teste não acessa a página viva do Google Maps nem comprova que todos os seletores externos continuarão iguais.

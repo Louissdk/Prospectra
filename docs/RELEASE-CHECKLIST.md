@@ -56,3 +56,6 @@
 - [ ] Confirmar que CSV e XLSX incluem latitude, longitude e origem das coordenadas.
 - [ ] Excluir um lead no dispositivo A, sincronizar e confirmar que ele não reaparece no dispositivo B.
 - [ ] Testar migração SQL de deleted_at em projeto Supabase de homologação.
+
+- [ ] Confirmar que o job `chromium-e2e` executa o content script em Chromium real.
+- [ ] Repetir a captura manual em uma ficha real do Google Maps no Chrome estável, pois a fixture de navegador não substitui a validação ao vivo.
