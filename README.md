@@ -12,6 +12,7 @@
     <img src="https://img.shields.io/badge/license-proprietary-E71506" alt="Proprietary">
   </p>
   <p>
+    <a href="https://github.com/Louissdk/Prospectra/releases/latest">Download</a> ·
     <a href="docs/GUIA-RAPIDO.md">Guia rápido</a> ·
     <a href="CHANGELOG.md">Histórico de versões</a> ·
     <a href="docs/SOLUCAO-DE-PROBLEMAS.md">Ajuda e problemas</a> ·
