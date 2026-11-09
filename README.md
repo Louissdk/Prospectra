@@ -1,5 +1,11 @@
 # Prospectra
 
+## Novidades da versão 1.2.3
+
+- Heartbeat dedicado durante a coleta para diferenciar processamento demorado de perda real de comunicação com a aba.
+- Watchdog ampliado para 2 minutos, reduzindo falsos erros quando o Chrome limita temporizadores de abas em segundo plano.
+- Leads continuam sendo persistidos em lotes durante a coleta.
+
 **Prospectra 1.1.0** é uma extensão Manifest V3 para Chrome que transforma resultados do Google Maps em uma base organizada de prospecção local.
 
 ## Novidades da versão 1.1.0

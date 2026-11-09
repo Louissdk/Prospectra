@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Prospectra — Prospecção Inteligente",
   "short_name": "Prospectra",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Coleta progressiva de leads do Google Maps, com salvamento por lotes e proteção contra paralisações.",
   "minimum_chrome_version": "116",
   "permissions": [

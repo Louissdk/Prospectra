@@ -100,6 +100,7 @@ async function enrichWebsite(website) {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === 'PROSPECTRA_PROGRESS' ||
+      message?.type === 'PROSPECTRA_HEARTBEAT' ||
       message?.type === 'PROSPECTRA_CAPTURE_BATCH' ||
       message?.type === 'PROSPECTRA_CAPTURE_COMPLETE') {
     sendResponse({ ok: true });

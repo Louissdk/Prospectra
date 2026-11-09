@@ -4,6 +4,15 @@
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   let activeCaptureTaskId = null;
+  let captureHeartbeatTimer = null;
+
+  function startCaptureHeartbeat(taskId) {
+    clearInterval(captureHeartbeatTimer);
+    captureHeartbeatTimer = setInterval(() => {
+      if (activeCaptureTaskId !== taskId) return;
+      chrome.runtime.sendMessage({ type: 'PROSPECTRA_HEARTBEAT', taskId, at: Date.now() }).catch(() => {});
+    }, 8000);
+  }
 
   function reportProgress(payload) {
     if (!activeCaptureTaskId) return;
@@ -342,6 +351,7 @@
 
       const taskId = String(message.taskId || crypto.randomUUID());
       activeCaptureTaskId = taskId;
+      startCaptureHeartbeat(taskId);
       const context = {
         searchTerm: clean(message.searchTerm || ''),
         city: clean(message.city || '')
@@ -379,6 +389,8 @@
         } catch {}
       }).finally(() => {
         if (activeCaptureTaskId === taskId) activeCaptureTaskId = null;
+        clearInterval(captureHeartbeatTimer);
+        captureHeartbeatTimer = null;
       });
 
       return false;

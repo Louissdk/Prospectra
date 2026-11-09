@@ -202,8 +202,8 @@ function createCaptureWaiter(taskId) {
     clearTimeout(inactivityTimer);
     inactivityTimer = setTimeout(() => {
       chrome.runtime.onMessage.removeListener(listener);
-      rejectPromise(new Error('A coleta perdeu comunicação com a aba do Google Maps por 45 segundos. Os leads já salvos foram preservados. Recarregue a aba do Maps e tente novamente.'));
-    }, 45000);
+      rejectPromise(new Error('A coleta ficou sem comunicação com a aba do Google Maps por 2 minutos. Os leads já salvos foram preservados. Recarregue a aba do Maps e tente novamente.'));
+    }, 120000);
   };
   const promise = new Promise((resolve, reject) => {
     resolvePromise = resolve;
