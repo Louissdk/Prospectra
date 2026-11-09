@@ -9,6 +9,7 @@ import {
 import { loadAppState, saveAppState, createBackup, validateBackup, loadCaptureCheckpoint } from './db.js';
 import { normalizeSupabaseProjectUrl, parsePostgrestTotal, buildRangeHeader, isGoogleMapsUrl } from './cloud-utils.js';
 import { enrichmentPermissionOrigins } from './permission-utils.js';
+import { classifyQueueOutcome, summarizeQueueOutcomes } from './queue-utils.js';
 
 const $ = (selector) => document.querySelector(selector);
 const PAGE_SIZE = 50;
@@ -761,6 +762,7 @@ async function runQueue() {
   const pending=state.queue.filter((item)=>['pending','interrupted','failed','partial'].includes(item.status));
   if (!pending.length) return;
   let tab;
+  const outcomes=[];
   queueRunning=true;queueStopRequested=false;renderResearch();
   try {
     const [active]=await chrome.tabs.query({active:true,currentWindow:true});
@@ -780,8 +782,13 @@ async function runQueue() {
         currentQueueItem=state.queue.find((row)=>row.id===item.id);
         if (currentQueueItem) {
           const reason=String(result.response.stopReason||'');
-          const interrupted=/cancelad|verificação|limitação|falha ao retornar|não foi possível retornar|interrompid/i.test(reason);
-          currentQueueItem.status=interrupted?'interrupted':(Number(result.response.requested||0)>result.items.length?'partial':'done');
+          const outcome=classifyQueueOutcome({
+            requested:Number(result.response.requested||0),
+            collected:result.items.length,
+            stopReason:reason
+          });
+          currentQueueItem.status=outcome;
+          outcomes.push(outcome);
           currentQueueItem.collected=(currentQueueItem.collected||0)+result.items.length;
           currentQueueItem.message=result.response.stopReason||'Concluída';
         }
@@ -789,14 +796,22 @@ async function runQueue() {
         currentQueueItem=state.queue.find((row)=>row.id===item.id);
         if (currentQueueItem) {
           const message=error?.message||'Falha na pesquisa';
-          currentQueueItem.status=/cancelad|verificação|limitação|interrompid|não foi possível/i.test(message)?'interrupted':'failed';
+          const outcome=classifyQueueOutcome({error:message});
+          currentQueueItem.status=outcome;
+          outcomes.push(outcome);
           currentQueueItem.message=message;
         }
         if (queueStopRequested) break;
       }
       await persist();
     }
-    setStatus(queueStopRequested?'Fila interrompida pelo usuário.':'Fila de pesquisas finalizada.','success');
+    const summary=summarizeQueueOutcomes(outcomes);
+    const prefix=queueStopRequested?'Fila interrompida pelo usuário.':'Fila finalizada.';
+    const details=summary.total
+      ? summary.total+' pesquisa(s): '+summary.done+' concluída(s), '+summary.partial+' parcial(is), '+summary.interrupted+' interrompida(s), '+summary.failed+' com falha.'
+      : 'Nenhuma pesquisa foi processada.';
+    const statusType=queueStopRequested||summary.partial||summary.interrupted?'warning':summary.failed?'error':'success';
+    setStatus(prefix+' '+details,statusType);
   } catch(error) {setStatus(error?.message||'Não foi possível executar a fila.','error');}
   finally {queueRunning=false;queueStopRequested=false;renderResearch();setBusy(false);}
 }
