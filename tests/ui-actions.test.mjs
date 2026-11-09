@@ -84,7 +84,7 @@ test('the Maps search action waits for detected business cards instead of report
 test('Maps readiness watcher is shared so tab events cannot cancel the search check',()=>{
   assert.match(source,/mapsReadinessWatch\?\.tabId===tabId/);
   assert.match(source,/mapsReadinessWatch=\{tabId,token,promise\}/);
-  assert.match(source,/force\}/);
+  assert.match(source,/force=false/);
 });
 test('capture uses the connected Maps tab even when the side panel is focused',()=>{
   const start=source.indexOf('async function getActiveMapsTab');
