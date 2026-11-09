@@ -61,6 +61,7 @@ create policy "Users can delete their own Prospectra leads"
   to authenticated
   using ((select auth.uid()) = user_id);
 
+revoke all privileges on table public.prospectra_leads from anon, public;
 grant select, insert, update, delete on public.prospectra_leads to authenticated;
 
 comment on table public.prospectra_leads is

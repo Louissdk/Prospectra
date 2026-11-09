@@ -31,6 +31,14 @@ begin
      or has_table_privilege('anon','public.prospectra_leads','DELETE') then
     raise exception 'A role anon recebeu acesso indevido à tabela.';
   end if;
+  if exists (
+    select 1 from information_schema.table_privileges
+    where table_schema='public'
+      and table_name='prospectra_leads'
+      and grantee='PUBLIC'
+  ) then
+    raise exception 'PUBLIC recebeu privilégios indevidos na tabela.';
+  end if;
 end
 $$;
 

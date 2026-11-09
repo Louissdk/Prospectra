@@ -18,5 +18,6 @@ test('Supabase schema keeps user isolation and identity uniqueness', () => {
 
 test('Supabase grants Data API access only to authenticated users', () => {
   assert.match(schema,/grant select, insert, update, delete on public\.prospectra_leads to authenticated/i);
+  assert.match(schema,/revoke all privileges on table public\\.prospectra_leads from anon, public/i);
   assert.doesNotMatch(schema,/grant [^;]*prospectra_leads to anon/i);
 });
