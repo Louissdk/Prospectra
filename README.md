@@ -1,12 +1,16 @@
 # Prospectra
 
-## Novidades da versão 1.2.3
+## Novidades da versão 1.2.4
 
-- Heartbeat dedicado durante a coleta para diferenciar processamento demorado de perda real de comunicação com a aba.
-- Watchdog ampliado para 2 minutos, reduzindo falsos erros quando o Chrome limita temporizadores de abas em segundo plano.
-- Leads continuam sendo persistidos em lotes durante a coleta.
+- Navegação sequencial refeita: cada ficha é confirmada pelo nome/rota, lida e fechada com retorno explícito aos resultados antes da próxima empresa.
+- O service worker salva os lotes em chrome.storage.local e só confirma a transmissão depois da gravação.
+- Monitoramento separado de comunicação e avanço real, com identificação da última etapa travada e cancelamento cooperativo.
+- Coleta processa uma ficha por vez, salva a cada dois leads e aguarda a lista carregar novos cartões.
+- Lista de leads paginada em blocos de 50 para reduzir o trabalho de renderização.
+- Limite máximo alinhado em 500 empresas por coleta.
 
-**Prospectra 1.1.0** é uma extensão Manifest V3 para Chrome que transforma resultados do Google Maps em uma base organizada de prospecção local.
+
+**Prospectra 1.2.4** é uma extensão Manifest V3 para Chrome que transforma resultados do Google Maps em uma base organizada de prospecção local.
 
 ## Novidades da versão 1.1.0
 
@@ -133,6 +137,6 @@ O script usa `$PSScriptRoot`, portanto deve ser executado como arquivo `.ps1`, n
 
 - Leads são enviados ao painel em lotes de 3 durante a coleta e salvos progressivamente.
 - Tempo máximo para abrir uma ficha reduzido para 2,6 segundos; retorno à lista limitado a 2,4 segundos e executado apenas quando o feed desaparece.
-- O painel acusa perda de comunicação após 45 segundos sem atividade e preserva os leads previamente salvos.
+- O painel monitora comunicação e progresso separadamente e cancela a tarefa quando uma etapa não avança.
 - Removida a exportação JSON e a seção de preferências sem controles funcionais.
 - A limpeza da lista foi movida para um botão ao lado do título dos leads.

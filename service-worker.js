@@ -1,4 +1,5 @@
 import { extractContactLinks, extractEmails, isPublicHttpUrl } from './contact-utils.js';
+import { mergeLeadRecords } from './capture-utils.js';
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error) => {
@@ -98,6 +99,51 @@ async function enrichWebsite(website) {
   };
 }
 
+const CAPTURE_STORAGE_KEY = 'prospectra_leads_v1';
+const MAX_CAPTURED_LEADS = 5000;
+let capturePersistenceQueue = Promise.resolve();
+
+function persistCaptureBatch(items) {
+  const task = capturePersistenceQueue.then(async () => {
+    const stored = await chrome.storage.local.get(CAPTURE_STORAGE_KEY);
+    const current = Array.isArray(stored[CAPTURE_STORAGE_KEY]) ? stored[CAPTURE_STORAGE_KEY] : [];
+    const merged = mergeLeadRecords(current, items, MAX_CAPTURED_LEADS);
+    await chrome.storage.local.set({ [CAPTURE_STORAGE_KEY]: merged });
+    return { saved: items.length, total: merged.length };
+  });
+  capturePersistenceQueue = task.catch(() => {});
+  return task;
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'PROSPECTRA_CAPTURE_BATCH') {
+    const items = Array.isArray(message.items) ? message.items : [];
+    if (!items.length) {
+      sendResponse({ ok: true, saved: 0 });
+      return false;
+    }
+    persistCaptureBatch(items)
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({
+        ok: false,
+        error: error?.message || 'Não foi possível salvar os leads no armazenamento do Chrome.'
+      }));
+    return true;
+  }
+  if (message?.type === 'PROSPECTRA_PROGRESS' ||
+      message?.type === 'PROSPECTRA_HEARTBEAT' ||
+      message?.type === 'PROSPECTRA_CAPTURE_COMPLETE') {
+    sendResponse({ ok: true });
+    return false;
+  }
+  if (message?.type === 'PROSPECTRA_ENRICH') {
+    enrichWebsite(message.website)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || 'Erro ao consultar o site.' }));
+    return true;
+  }
+  return false;
+});
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === 'PROSPECTRA_PROGRESS' ||
       message?.type === 'PROSPECTRA_HEARTBEAT' ||

@@ -142,3 +142,17 @@ h2 { margin: 5px 0 0; font-size: 17px; letter-spacing: -.45px; }
 .list-actions { display: flex; align-items: center; gap: 6px; }
 .clear-icon-button { color: #ff9da5; border-color: rgba(255,127,138,.25); }
 .clear-icon-button:hover { border-color: rgba(255,127,138,.65); color: #ffd2d5; }
+
+
+/* Prospectra 1.2.4: paginação para manter o painel leve em bases grandes */
+.show-more-button {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid rgba(105,169,255,.25);
+  border-radius: 9px;
+  background: rgba(105,169,255,.07);
+  color: #a9cbfa;
+  font-size: 10px;
+  font-weight: 700;
+}
+.show-more-button:hover { background: rgba(105,169,255,.13); }

@@ -1,9 +1,12 @@
 import { buildWhatsAppUrl, normalizePhone, toCsv } from './contact-utils.js';
 import { createXlsx } from './workbook.js';
+import { mergeLeadRecords } from './capture-utils.js';
 
 const $ = (selector) => document.querySelector(selector);
 const STORAGE_KEY = 'prospectra_leads_v1';
 const MAX_SAVED = 5000;
+const PAGE_SIZE = 50;
+let visibleLeadCount = PAGE_SIZE;
 let leads = [];
 let busy = false;
 let activeCaptureTaskId = null;
@@ -53,7 +56,7 @@ function normalizeLead(item) {
 
 async function loadLeads() {
   const stored = await chrome.storage.local.get(STORAGE_KEY);
-  leads = (Array.isArray(stored[STORAGE_KEY]) ? stored[STORAGE_KEY] : []).map(normalizeLead);
+  leads = mergeLeadRecords([], (Array.isArray(stored[STORAGE_KEY]) ? stored[STORAGE_KEY] : []).map(normalizeLead), MAX_SAVED);
   render();
 }
 
@@ -96,29 +99,7 @@ function setProgress(done, total, label = 'Coletando empresas') {
 }
 
 function mergeLeads(incoming) {
-  const byKey = new Map(leads.map((lead) => [lead.mapsUrl || `${lead.name}|${lead.phone}`, lead]));
-  for (const raw of incoming) {
-    const item = normalizeLead(raw);
-    const key = item.mapsUrl || `${item.name}|${item.phone}`;
-    const previous = byKey.get(key);
-    if (previous) {
-      byKey.set(key, normalizeLead({
-        ...previous,
-        ...item,
-        phone: item.phone || previous.phone,
-        whatsappUrl: item.whatsappUrl || previous.whatsappUrl,
-        address: item.address || previous.address,
-        website: item.website || previous.website,
-        category: item.category || previous.category,
-        city: item.city || previous.city,
-        searchTerm: item.searchTerm || previous.searchTerm,
-        emails: [...new Set([...(previous.emails || []), ...(item.emails || [])])],
-        emailStatus: (item.emails?.length || previous.emails?.length) ? 'found' : (item.emailStatus || previous.emailStatus),
-        collectedAt: previous.collectedAt
-      }));
-    } else byKey.set(key, item);
-  }
-  leads = [...byKey.values()].sort((a, b) => new Date(b.collectedAt) - new Date(a.collectedAt));
+  leads = mergeLeadRecords(leads, incoming.map(normalizeLead), MAX_SAVED);
 }
 
 async function getActiveMapsTab() {
@@ -195,56 +176,69 @@ async function enrichLeads(items) {
 function createCaptureWaiter(taskId) {
   let resolvePromise;
   let rejectPromise;
-  let persistence = Promise.resolve();
-  let inactivityTimer = null;
+  let communicationTimer = null;
+  let progressTimer = null;
+  let lastStage = 'iniciando a leitura dos resultados';
   const items = [];
-  const armWatchdog = () => {
-    clearTimeout(inactivityTimer);
-    inactivityTimer = setTimeout(() => {
-      chrome.runtime.onMessage.removeListener(listener);
-      rejectPromise(new Error('A coleta ficou sem comunicação com a aba do Google Maps por 2 minutos. Os leads já salvos foram preservados. Recarregue a aba do Maps e tente novamente.'));
-    }, 120000);
+
+  const clearTimers = () => {
+    clearTimeout(communicationTimer);
+    clearTimeout(progressTimer);
   };
+  const fail = (message) => {
+    clearTimers();
+    chrome.runtime.onMessage.removeListener(listener);
+    rejectPromise(new Error(message));
+  };
+  const armCommunicationWatchdog = () => {
+    clearTimeout(communicationTimer);
+    communicationTimer = setTimeout(() => {
+      fail('A aba do Google Maps deixou de enviar sinais de comunicação por 90 segundos. Os leads confirmados no armazenamento foram preservados.');
+    }, 90000);
+  };
+  const armProgressWatchdog = () => {
+    clearTimeout(progressTimer);
+    progressTimer = setTimeout(() => {
+      fail('A coleta ficou 45 segundos sem avançar. Última etapa: ' + lastStage + '. Os lotes confirmados foram preservados e a tarefa será cancelada.');
+    }, 45000);
+  };
+
   const promise = new Promise((resolve, reject) => {
     resolvePromise = resolve;
     rejectPromise = reject;
   });
-
   const listener = (message) => {
     if (!message || message.taskId !== taskId) return;
-    armWatchdog();
-
+    armCommunicationWatchdog();
+    if (message.type === 'PROSPECTRA_HEARTBEAT') return;
+    if (message.type === 'PROSPECTRA_PROGRESS') {
+      lastStage = String(message.name || 'processando um resultado').slice(0, 180);
+      armProgressWatchdog();
+      return;
+    }
     if (message.type === 'PROSPECTRA_CAPTURE_BATCH') {
       const batch = Array.isArray(message.items) ? message.items : [];
       items.push(...batch);
-      persistence = persistence.then(async () => {
-        mergeLeads(batch.map((item) => normalizeLead({
-          ...item,
-          collectedAt: new Date().toISOString()
-        })));
-        await saveLeads();
-      }).catch((error) => {
-        console.error('[Prospectra] Não foi possível salvar um lote durante a coleta:', error);
-      });
+      mergeLeads(batch);
+      render();
+      lastStage = 'salvando os leads confirmados';
+      armProgressWatchdog();
       return;
     }
-
     if (message.type === 'PROSPECTRA_CAPTURE_COMPLETE') {
-      clearTimeout(inactivityTimer);
+      clearTimers();
       chrome.runtime.onMessage.removeListener(listener);
-      persistence.then(() => {
-        if (message.ok) resolvePromise({ ...message, items });
-        else rejectPromise(new Error(message.error || 'Falha na coleta.'));
-      });
+      if (message.ok) resolvePromise({ ...message, items });
+      else rejectPromise(new Error(message.error || 'Falha na coleta.'));
     }
   };
-
   chrome.runtime.onMessage.addListener(listener);
-  armWatchdog();
+  armCommunicationWatchdog();
+  armProgressWatchdog();
   return {
     promise,
     cancel: () => {
-      clearTimeout(inactivityTimer);
+      clearTimers();
       chrome.runtime.onMessage.removeListener(listener);
     }
   };
@@ -266,13 +260,16 @@ async function capture(mode) {
     : Promise.resolve(false);
   let waiter = null;
   let incoming = [];
+  let captureTabId = null;
+  let taskId = null;
 
   setBusy(true);
   $('#progressWrap').hidden = false;
   setProgress(0, requestedLimit, 'Conectando ao Google Maps');
   try {
     const tab = await getActiveMapsTab();
-    const taskId = crypto.randomUUID();
+    captureTabId = tab.id;
+    taskId = crypto.randomUUID();
     activeCaptureTaskId = taskId;
     waiter = createCaptureWaiter(taskId);
 
@@ -328,6 +325,9 @@ async function capture(mode) {
       }
     }
   } catch (error) {
+    if (captureTabId && taskId) {
+      chrome.tabs.sendMessage(captureTabId, { type: 'PROSPECTRA_CAPTURE_CANCEL', taskId }).catch(() => {});
+    }
     setStatus(error?.message || 'Não foi possível concluir a coleta.', 'error');
     $('#progressWrap').hidden = true;
   } finally {
@@ -404,7 +404,19 @@ function render() {
     list.innerHTML = `<div class="empty-state"><div class="empty-icon">⌖</div><strong>${total ? 'Nenhum resultado para esse filtro' : 'Sua lista começa aqui'}</strong><span>${total ? 'Tente outro termo ou filtro.' : 'As empresas capturadas aparecerão neste painel.'}</span></div>`;
     return;
   }
-  list.innerHTML = filtered.map((lead) => cardHtml(lead, leads.indexOf(lead))).join('');
+  const visible = filtered.slice(0, visibleLeadCount);
+  list.innerHTML = visible.map((lead) => cardHtml(lead, leads.indexOf(lead))).join('');
+  if (filtered.length > visible.length) {
+    const remaining = filtered.length - visible.length;
+    list.insertAdjacentHTML('beforeend',
+      '<button id="showMoreButton" class="show-more-button" type="button">Mostrar mais ' +
+      Math.min(PAGE_SIZE, remaining) + ' de ' + remaining + ' restantes</button>'
+    );
+    $('#showMoreButton').addEventListener('click', () => {
+      visibleLeadCount += PAGE_SIZE;
+      render();
+    });
+  }
   list.querySelectorAll('[data-copy]').forEach((button) => {
     button.addEventListener('click', async () => {
       try {
@@ -470,8 +482,8 @@ async function updateTabStatus() {
 $('#searchMapsButton').addEventListener('click', searchMaps);
 $('#captureButton').addEventListener('click', () => capture('visible'));
 $('#captureOpenButton').addEventListener('click', () => capture('open'));
-$('#searchInput').addEventListener('input', render);
-$('#filterSelect').addEventListener('change', render);
+$('#searchInput').addEventListener('input', () => { visibleLeadCount = PAGE_SIZE; render(); });
+$('#filterSelect').addEventListener('change', () => { visibleLeadCount = PAGE_SIZE; render(); });
 $('#refreshButton').addEventListener('click', loadLeads);
 $('#exportXlsxButton').addEventListener('click', exportXlsx);
 $('#exportCsvButton').addEventListener('click', exportCsv);
@@ -480,6 +492,7 @@ $('#clearButton').addEventListener('click', async () => {
   if (!leads.length) return;
   if (!confirm('Apagar todos os leads salvos neste navegador? Esta ação não pode ser desfeita.')) return;
   leads = [];
+  visibleLeadCount = PAGE_SIZE;
   await saveLeads();
   setStatus('Todos os leads locais foram removidos.', 'success');
 });
@@ -492,5 +505,5 @@ chrome.runtime.onMessage.addListener((message) => {
 
 chrome.tabs.onActivated.addListener(updateTabStatus);
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => { if (changeInfo.status === 'complete' || changeInfo.url) updateTabStatus(); });
-loadLeads();
+loadLeads().catch((error) => setStatus(error?.message || 'Não foi possível carregar os leads salvos.', 'error'));
 updateTabStatus();

@@ -4,6 +4,7 @@
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   let activeCaptureTaskId = null;
+  let activeCaptureCancelled = false;
   let captureHeartbeatTimer = null;
 
   function startCaptureHeartbeat(taskId) {
@@ -23,27 +24,54 @@
     }).catch(() => {});
   }
 
-  async function sendCaptureBatch(items) {
-    if (!activeCaptureTaskId || !items?.length) return;
+  async function sendRuntimeMessage(message, timeoutMs = 12000) {
+    let timeoutId = null;
     try {
-      await chrome.runtime.sendMessage({
-        type: 'PROSPECTRA_CAPTURE_BATCH',
-        taskId: activeCaptureTaskId,
-        items
-      });
-    } catch (error) {
-      console.warn('[Prospectra] Não foi possível transmitir um lote agora:', error);
-    }
+      return await Promise.race([
+        chrome.runtime.sendMessage(message),
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('Tempo excedido ao comunicar com o armazenamento da extensão.')), timeoutMs);
+        })
+      ]);
+    } finally { clearTimeout(timeoutId); }
   }
+  async function sendCaptureBatch(items) {
+    if (!activeCaptureTaskId || !items?.length) return true;
+    let lastError = null;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        const response = await sendRuntimeMessage({
+          type: 'PROSPECTRA_CAPTURE_BATCH', taskId: activeCaptureTaskId, items
+        });
+        if (response?.ok) return true;
+        throw new Error(response?.error || 'O armazenamento não confirmou o lote.');
+      } catch (error) {
+        lastError = error;
+        console.warn('[Prospectra] Falha ao salvar lote (tentativa ' + attempt + '/3):', error);
+        if (attempt < 3) await sleep(500 * attempt);
+      }
+    }
+    throw new Error('Não foi possível confirmar o salvamento do lote: ' + (lastError?.message || 'falha de comunicação'));
+  }
+
   const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
   const absolute = (value) => {
     try { return new URL(value, location.href).href; } catch { return ''; };
   };
   const validMapsTab = () => /(^|\.)google\.[^/]+$/.test(location.hostname) && /\/maps/.test(location.pathname);
 
+  function isRendered(element) {
+    if (!element?.isConnected || !element.getClientRects?.().length) return false;
+    const style = getComputedStyle(element);
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+  }
   function getFeed() {
-    return document.querySelector('[role="feed"]') ||
-      document.querySelector('div[aria-label*="Results for"], div[aria-label*="Resultados para"]');
+    const candidates = [...document.querySelectorAll(
+      '[role="feed"], div[aria-label*="Results for"], div[aria-label*="Resultados para"]'
+    )];
+    const visible = candidates.filter(isRendered);
+    return visible.find((element) => element.querySelector('a[href*="/maps/place/"]')) ||
+      visible.sort((a,b) => (b.scrollHeight-b.clientHeight)-(a.scrollHeight-a.clientHeight))[0] || null;
   }
 
   function getCard(anchor) {
@@ -93,7 +121,11 @@
 
   function phoneFromCard(card) {
     const tel = card?.querySelector('a[href^="tel:"]')?.getAttribute('href');
-    if (tel) return formatPhone(decodeURIComponent(tel.replace(/^tel:/i, '')));
+    if (tel) {
+      const raw = tel.replace(/^tel:/i, '');
+      try { return formatPhone(decodeURIComponent(raw)); }
+      catch { return formatPhone(raw); }
+    }
     const dataItem = card?.querySelector('[data-item-id^="phone:tel:"]')?.getAttribute('data-item-id');
     if (dataItem) return formatPhone(dataItem.replace(/^phone:tel:/i, ''));
     const labelled = card?.querySelector('[aria-label*="Telefone"], [aria-label*="Phone"]')?.getAttribute('aria-label');
@@ -199,37 +231,67 @@
     };
   }
 
-  async function waitForDetail(previousUrl, expectedName, timeout = 2600) {
+  function isPlaceRoute() {
+    return /\/maps\/place\//i.test(location.pathname);
+  }
+  function throwIfCaptureCancelled() {
+    if (activeCaptureCancelled) throw new Error('Coleta cancelada.');
+  }
+  async function waitForResults(timeout = 18000) {
     const started = Date.now();
     while (Date.now() - started < timeout) {
-      const heading = detailRoot().querySelector('h1');
-      const headingText = clean(heading?.textContent || '').toLowerCase();
-      const expected = clean(expectedName).toLowerCase();
-      const hasDetail = headingText.length > 1 && expected.length > 1 && (headingText === expected || headingText.includes(expected));
-      const urlChanged = location.href !== previousUrl && /\/maps\/place\//.test(location.pathname);
-      if (hasDetail || urlChanged) {
-        await sleep(500);
+      throwIfCaptureCancelled();
+      const feed = getFeed();
+      if (feed && collectCards().length) return feed;
+      await sleep(300);
+    }
+    throw new Error('O Google Maps não disponibilizou cartões de empresas. Aguarde os resultados carregarem e tente novamente.');
+  }
+  async function waitForDetail(expectedName, expectedUrl = '', timeout = 6500) {
+    const started = Date.now();
+    const expected = clean(expectedName).toLowerCase();
+    let matchingHeadingSamples = 0;
+    let targetPath = '';
+    try { targetPath = new URL(expectedUrl, location.href).pathname.replace(/\/$/, ''); } catch {}
+    while (Date.now() - started < timeout) {
+      throwIfCaptureCancelled();
+      const headingText = clean(detailRoot().querySelector('h1')?.textContent || '').toLowerCase();
+      const headingMatches = expected.length > 1 &&
+        (headingText === expected || headingText.includes(expected) || expected.includes(headingText));
+      matchingHeadingSamples = headingMatches ? matchingHeadingSamples + 1 : 0;
+      let currentPath = '';
+      try { currentPath = new URL(location.href).pathname.replace(/\/$/, ''); } catch {}
+      if (matchingHeadingSamples >= 2 || (!!targetPath && isPlaceRoute() && currentPath === targetPath)) {
+        await sleep(350);
         return true;
       }
-      await sleep(200);
+      await sleep(180);
     }
     return false;
   }
-
-  async function returnToResults(previousUrl) {
-    const backButton = [...document.querySelectorAll('button')].find((button) => {
-      const label = `${button.getAttribute('aria-label') || ''} ${button.getAttribute('title') || ''}`;
-      return /back|voltar|return|resultados/i.test(label);
+  async function returnToResults(previousUrl, timeout = 7000) {
+    const backButton = [...document.querySelectorAll('button')].filter(isRendered).find((button) => {
+      const label = (button.getAttribute('aria-label') || '') + ' ' +
+        (button.getAttribute('title') || '') + ' ' + (button.innerText || '');
+      return /back to results|voltar para resultados|retornar aos resultados|resultados|\bback\b|\bvoltar\b|\bclose\b|\bfechar\b/i.test(label);
     });
     if (backButton) backButton.click();
-    else if (location.href !== previousUrl) {
+    else if (isPlaceRoute() || location.href !== previousUrl) {
       try { history.back(); } catch {}
+    } else return false;
+    const started = Date.now();
+    let fallbackUsed = false;
+    while (Date.now() - started < timeout) {
+      throwIfCaptureCancelled();
+      if (!isPlaceRoute() && getFeed()) return true;
+      if (!fallbackUsed && Date.now() - started > 2200 &&
+          (isPlaceRoute() || location.href !== previousUrl)) {
+        fallbackUsed = true;
+        try { history.back(); } catch {}
+      }
+      await sleep(200);
     }
-    for (let i = 0; i < 16; i += 1) {
-      await sleep(150);
-      if (getFeed()) return true;
-    }
-    return !!getFeed();
+    return !isPlaceRoute() && !!getFeed();
   }
 
   async function captureOpenBusiness(context = {}) {
@@ -242,104 +304,141 @@
 
   async function captureVisibleBusinesses(limit = 40, minRating = 0, context = {}) {
     if (!validMapsTab()) throw new Error('Abra uma pesquisa do Google Maps antes de iniciar a coleta.');
-    let feed = getFeed();
-    if (!feed) throw new Error('Não encontrei a lista de resultados. Aguarde o Google Maps terminar a pesquisa.');
-
+    await waitForResults();
     const parsedLimit = Number(limit);
     const unlimited = Number.isFinite(parsedLimit) && parsedLimit === 0;
     const maxLeads = unlimited ? Infinity : Math.max(1, Math.min(
-      Number.isFinite(parsedLimit) ? Math.floor(parsedLimit) : 40,
-      5000
+      Number.isFinite(parsedLimit) ? Math.floor(parsedLimit) : 40, 500
     ));
+    const progressTotal = Number.isFinite(maxLeads) ? maxLeads : 0;
     const threshold = Math.max(0, Math.min(Number(minRating) || 0, 5));
     const collected = [];
     const processed = new Set();
-    let filteredOut = 0;
-    let stagnantRounds = 0;
-    let scrollRounds = 0;
-    let sentCount = 0;
+    let filteredOut = 0, stagnantRounds = 0, scrollRounds = 0, sentCount = 0;
+    let stopReason = '';
 
-    // Processa cada lote visível e avança a lista para forçar o carregamento progressivo do Maps.
-    while ((unlimited || collected.length < maxLeads) && scrollRounds < (unlimited ? 2000 : 140) && stagnantRounds < 4) {
-      feed = getFeed();
-      if (!feed) break;
+    while ((unlimited || collected.length < maxLeads) &&
+           scrollRounds < (unlimited ? 2000 : 180) && stagnantRounds < 6) {
+      throwIfCaptureCancelled();
+      const feed = getFeed();
+      if (!feed) { stopReason = 'A lista de resultados deixou de estar disponível.'; break; }
       const cards = collectCards();
-      let newInRound = 0;
+      const basic = cards.find((item) => {
+        const key = item.mapsUrl || item.name + '|' + item.address;
+        return key && !processed.has(key);
+      });
 
-      for (const basic of cards) {
-        if (collected.length >= maxLeads) break;
-        const key = basic.mapsUrl || `${basic.name}|${basic.address}`;
-        if (processed.has(key)) continue;
+      if (basic) {
+        const key = basic.mapsUrl || basic.name + '|' + basic.address;
         processed.add(key);
-        newInRound += 1;
-
         const rating = Number(String(basic.rating || '').replace(',', '.'));
         if (threshold > 0 && (!basic.rating || !Number.isFinite(rating) || rating < threshold)) {
           filteredOut += 1;
-          reportProgress({ done: collected.length + filteredOut, total: maxLeads, name: `Descartado por nota: ${basic.name}` });
+          reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Descartado pela nota: ' + basic.name });
           continue;
         }
 
-        reportProgress({ done: collected.length + filteredOut, total: maxLeads, name: basic.name });
         let details = { ...basic, ...context, website: '', whatsappUrl: '', emails: [], emailStatus: 'pending' };
         const anchor = [...(getFeed()?.querySelectorAll('a[href*="/maps/place/"]') || [])]
-          .find((node) => absolute(node.href) === basic.mapsUrl);
+          .find((node) => absolute(node.href) === basic.mapsUrl && isRendered(node));
+
         if (anchor) {
           const previousUrl = location.href;
-          let opened = false;
           try {
+            reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Abrindo ficha: ' + basic.name });
             anchor.scrollIntoView({ block: 'center', behavior: 'auto' });
-            await sleep(180);
+            await sleep(120);
+            throwIfCaptureCancelled();
             anchor.click();
-            opened = await waitForDetail(previousUrl, basic.name);
-            if (opened) details = extractDetail(basic, context);
-            else details.captureNote = 'A ficha não abriu a tempo; dados do cartão foram preservados.';
+            reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Aguardando ficha: ' + basic.name });
+            const opened = await waitForDetail(basic.name, basic.mapsUrl);
+            if (opened) {
+              reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Lendo contatos: ' + basic.name });
+              details = extractDetail(basic, context);
+            } else {
+              details.captureNote = 'A ficha não confirmou a abertura; os dados do cartão foram preservados.';
+            }
+            reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Retornando aos resultados após: ' + basic.name });
+            const returned = await returnToResults(previousUrl);
+            if (!returned) {
+              details.captureNote = [details.captureNote, 'O Google Maps não confirmou o retorno à lista. A coleta foi interrompida para evitar abrir fichas sobrepostas.'].filter(Boolean).join(' ');
+              collected.push(details);
+              if (collected.length - sentCount >= 2) {
+                await sendCaptureBatch(collected.slice(sentCount));
+                sentCount = collected.length;
+              }
+              stopReason = 'Não foi possível retornar à lista após: ' + basic.name;
+              break;
+            }
           } catch (error) {
-            details.captureNote = error?.message || 'Não foi possível abrir a ficha da empresa.';
+            details.captureNote = [details.captureNote, error?.message || 'Falha durante a abertura ou leitura da ficha.'].filter(Boolean).join(' ');
+            if (isPlaceRoute() || location.href !== previousUrl) {
+              const returned = await returnToResults(previousUrl);
+              if (!returned) {
+                collected.push(details);
+                stopReason = 'Falha ao retornar aos resultados depois de: ' + basic.name;
+                break;
+              }
+            }
           }
-          // O Maps pode manter o feed montado por trás da ficha.
-          // Só volta no histórico quando a lista realmente desaparece.
-          if (!getFeed()) await returnToResults(previousUrl);
         } else {
-          details.captureNote = 'O cartão saiu da lista antes da abertura da ficha.';
+          details.captureNote = 'O cartão não estava mais disponível na lista visível.';
         }
-        collected.push(details);
 
-        // Envia lotes pequenos durante a coleta, em vez de esperar todas as fichas.
-        if (collected.length - sentCount >= 3) {
-          await sendCaptureBatch(collected.slice(sentCount, collected.length));
+        collected.push(details);
+        reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Lead capturado: ' + basic.name });
+        if (collected.length - sentCount >= 2) {
+          reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Salvando lote de leads' });
+          await sendCaptureBatch(collected.slice(sentCount));
           sentCount = collected.length;
         }
+        continue;
       }
-
-      if (collected.length >= maxLeads) break;
-      feed = getFeed();
-      if (!feed) break;
-      if (newInRound === 0) stagnantRounds += 1;
-      else stagnantRounds = 0;
 
       const beforeTop = feed.scrollTop;
       const beforeHeight = feed.scrollHeight;
-      const step = Math.max(500, Math.floor(feed.clientHeight * 0.82));
-      feed.scrollTop = Math.min(Math.max(0, feed.scrollHeight - feed.clientHeight), beforeTop + step);
+      const step = Math.max(420, Math.floor(feed.clientHeight * 0.78));
+      feed.scrollTo({
+        top: Math.min(Math.max(0, feed.scrollHeight - feed.clientHeight), beforeTop + step),
+        behavior: 'instant'
+      });
       scrollRounds += 1;
-      await sleep(1100);
+      reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Carregando mais resultados do Google Maps' });
+
+      const scrollStarted = Date.now();
+      let foundMore = false;
+      while (Date.now() - scrollStarted < 6000) {
+        throwIfCaptureCancelled();
+        await sleep(300);
+        const currentFeed = getFeed();
+        if (!currentFeed) break;
+        const currentCards = collectCards();
+        const hasUnseen = currentCards.some((item) => {
+          const nextKey = item.mapsUrl || item.name + '|' + item.address;
+          return nextKey && !processed.has(nextKey);
+        });
+        if (hasUnseen || currentFeed.scrollHeight > beforeHeight) { foundMore = true; break; }
+      }
       const afterFeed = getFeed();
-      if (!afterFeed) break;
-      const afterCards = collectCards();
-      const unseenCards = afterCards.filter((item) => !processed.has(item.mapsUrl || `${item.name}|${item.address}`)).length;
-      const contentGrew = afterFeed.scrollHeight > beforeHeight;
+      if (!afterFeed) { stopReason = 'A lista de resultados desapareceu durante a rolagem.'; break; }
       const moved = afterFeed.scrollTop !== beforeTop;
-      if (unseenCards > 0 || contentGrew || moved) stagnantRounds = 0;
-      else stagnantRounds += 1;
+      stagnantRounds = foundMore || moved ? 0 : stagnantRounds + 1;
     }
 
     if (sentCount < collected.length) {
+      reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Salvando últimos leads' });
       await sendCaptureBatch(collected.slice(sentCount));
       sentCount = collected.length;
     }
-    reportProgress({ done: collected.length + filteredOut, total: Number.isFinite(maxLeads) ? maxLeads : 0, name: 'Coleta concluída' });
-    return { items: collected, sentCount, filteredOut, scanned: processed.size, requested: unlimited ? 0 : maxLeads };
+    reportProgress({
+      done: collected.length + filteredOut,
+      total: progressTotal,
+      name: stopReason || 'Coleta concluída'
+    });
+    return {
+      items: collected, sentCount, filteredOut, scanned: processed.size,
+      requested: unlimited ? 0 : maxLeads, stopReason
+    };
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -351,6 +450,7 @@
 
       const taskId = String(message.taskId || crypto.randomUUID());
       activeCaptureTaskId = taskId;
+      activeCaptureCancelled = false;
       startCaptureHeartbeat(taskId);
       const context = {
         searchTerm: clean(message.searchTerm || ''),
@@ -389,10 +489,18 @@
         } catch {}
       }).finally(() => {
         if (activeCaptureTaskId === taskId) activeCaptureTaskId = null;
+        activeCaptureCancelled = false;
         clearInterval(captureHeartbeatTimer);
         captureHeartbeatTimer = null;
       });
 
+      return false;
+    }
+
+    if (message?.type === 'PROSPECTRA_CAPTURE_CANCEL' &&
+        message.taskId === activeCaptureTaskId) {
+      activeCaptureCancelled = true;
+      sendResponse({ ok: true });
       return false;
     }
 
