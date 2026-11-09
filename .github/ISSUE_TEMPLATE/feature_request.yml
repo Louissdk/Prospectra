@@ -1,0 +1,40 @@
+name: Sugerir uma melhoria
+description: Proponha uma melhoria com problema, usuário e resultado esperado.
+title: "[Melhoria] "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qual problema precisa ser resolvido?
+      placeholder: "Hoje é difícil..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Como deveria funcionar?
+      placeholder: "O Prospectra poderia..."
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Coleta
+        - Qualidade dos dados
+        - Enriquecimento
+        - CRM
+        - Relatórios
+        - Integrações
+        - Segurança e privacidade
+        - Documentação
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+    validations:
+      required: false

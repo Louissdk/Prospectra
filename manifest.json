@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Prospectra — Prospecção Inteligente",
   "short_name": "Prospectra",
-  "version": "1.2.5",
-  "description": "Coleta progressiva de leads do Google Maps, com diagnóstico de resultados, salvamento por lotes e status de coleta parcial.",
+  "version": "2.0.0",
+  "description": "Plataforma local-first de prospecção: coleta progressiva no Google Maps, enriquecimento de contatos, CRM, relatórios e sincronização opcional.",
   "minimum_chrome_version": "116",
   "permissions": [
     "activeTab",
@@ -43,5 +43,9 @@
       ],
       "run_at": "document_idle"
     }
+  ],
+  "optional_permissions": [
+    "alarms",
+    "notifications"
   ]
 }

@@ -1,0 +1,84 @@
+# Arquitetura do Prospectra 2.0
+
+## Visão geral
+
+O Prospectra é uma extensão Chrome Manifest V3 dividida em quatro partes principais:
+
+| Arquivo | Responsabilidade |
+|---|---|
+| content.js | Detecta resultados do Maps, abre fichas, coleta campos e reporta progresso |
+| service-worker.js | Persiste lotes, consulta sites públicos, verifica DNS/MX e agenda notificações |
+| sidepanel.js | Interface, CRM, fila de pesquisas, relatórios e integrações |
+| db.js | Inicialização, migração e persistência IndexedDB |
+| crm-utils.js | Normalização, score, Place ID, endereço, telefone, CNPJ e templates |
+| capture-utils.js | Deduplicação, mesclagem e resumo da coleta |
+| contact-utils.js | E-mails, URLs públicas, telefones, WhatsApp e CSV |
+| workbook.js | Geração do arquivo Excel XLSX |
+| spreadsheet-import.js | Leitura de XLSX via diretório ZIP, relações do workbook e shared strings |
+
+## Fluxo da captura
+
+1. O usuário inicia uma tarefa no painel.
+2. O painel envia um identificador de tarefa para o content script.
+3. O content script reconhece a lista, coleta os cartões e percorre os resultados.
+4. Cada ficha é aberta, lida e fechada antes da próxima.
+5. Os lotes são enviados ao service worker.
+6. O service worker grava os registros no IndexedDB e confirma a persistência.
+7. O painel mescla os registros na lista e atualiza métricas.
+
+O heartbeat informa que a comunicação continua viva. O progresso informa mudança de etapa. Os dois sinais são tratados separadamente para evitar que um heartbeat esconda uma coleta travada.
+
+## Persistência local
+
+O banco usa IndexedDB com uma chave de estado contendo leads, atividades, pesquisas, fila, configurações, lista de não contatar e diagnósticos.
+
+Na primeira abertura da versão 2.0, se o estado novo não existe, o Prospectra lê a chave prospectra_leads_v1 do Chrome Storage e migra os registros. A versão antiga não é apagada durante a migração.
+
+IndexedDB oferece mais capacidade e estrutura do que armazenar a base inteira em um único registro do Chrome Storage. Ainda assim, os dados continuam vinculados ao perfil local do Chrome.
+
+## Modelo simplificado de lead
+
+Campos importantes:
+
+- Identidade: id, placeId, mapsUrl.
+- Empresa: name, category, categoryPath, address, addressParts, city.
+- Contatos: phone, phones, emails, emailTypes, whatsappUrl, socialProfiles.
+- Enriquecimento: websiteStatus, httpStatus, mxStatus, websiteMeta, CNPJ numérico/alfanumérico, openingHours.
+- Qualidade: qualityScore, confidence, sourceMap, ratingHistory.
+- CRM: stage, owner, tags, activities, nextFollowUp, doNotContact.
+- Auditoria: collectedAt, updatedAt, enrichedAt.
+
+## Deduplicação
+
+A prioridade de identidade é:
+
+1. Place ID disponível.
+2. URL de ficha do Maps normalizada.
+3. Nome normalizado mais telefone.
+4. Nome normalizado mais endereço.
+
+A mesclagem preserva dados preenchidos, e-mails, telefones, etiquetas, atividades e histórico de avaliação.
+
+## Enriquecimento
+
+O service worker valida URLs HTTP/HTTPS, limita tempo e tamanho de respostas, verifica redirecionamentos e percorre a página principal e páginas internas relevantes do mesmo site. Não executa scripts do site.
+
+Os dados encontrados recebem origem e nível de confiança quando possível. E-mail e telefone encontrados no site são diferenciados dos campos lidos diretamente no Maps.
+
+## Integrações
+
+### Google Sheets
+Envia um JSON com os leads para um Web App do Apps Script implantado pelo usuário. O endpoint e token opcional ficam nas configurações locais.
+
+### Supabase
+Autentica com e-mail e senha na API Auth e usa a chave anon/public com RLS. A tabela guarda cada lead como JSONB por usuário. A senha não é salva; tokens de sessão ficam no banco local do navegador.
+
+A sincronização lê a nuvem em páginas de até 1.000 registros, com limite de 10.000 registros por sincronização, mescla os registros locais e remotos e envia atualizações em lotes de até 200. Exclusões não são propagadas nesta versão.
+
+## Testes
+
+- Testes unitários de normalização, CNPJ, Place ID, deduplicação, score e exportações.
+- Testes simulados com jsdom para fluxo de abertura, leitura, retorno e tela de limitação.
+- GitHub Actions executa verificação sintática, testes e validação do Manifest V3.
+
+Os testes usam DOM simulado e não garantem que os seletores continuem funcionando em todas as versões reais do Google Maps.

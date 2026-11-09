@@ -1,147 +1,211 @@
-# Prospectra
+<div align="center">
+  <img src="docs/assets/banner.svg" alt="Prospectra — Prospecção e CRM em um só lugar" width="100%">
+  <h1>Prospectra</h1>
+  <p><strong>Sales Intelligence para prospecção local.</strong></p>
+  <p>Encontre empresas. Enriqueça contatos. Organize oportunidades. Acompanhe cada próximo passo.</p>
+  <p>
+    <a href="https://github.com/Louissdk/Prospectra/actions/workflows/ci.yml"><img src="https://github.com/Louissdk/Prospectra/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+    <img src="https://img.shields.io/badge/version-2.0.0-6ea8fa" alt="Version 2.0.0">
+    <img src="https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4" alt="Chrome Manifest V3">
+    <img src="https://img.shields.io/badge/language-JavaScript-f7df1e" alt="JavaScript">
+    <img src="https://img.shields.io/badge/data-local--first-41b883" alt="Local first">
+    <img src="https://img.shields.io/badge/license-proprietary-7b8ca8" alt="Proprietary">
+  </p>
+  <p>
+    <a href="docs/GUIA-RAPIDO.md">Guia rápido</a> ·
+    <a href="CHANGELOG.md">Histórico de versões</a> ·
+    <a href="docs/SOLUCAO-DE-PROBLEMAS.md">Ajuda e problemas</a> ·
+    <a href="docs/ARQUITETURA.md">Arquitetura</a>
+  </p>
+</div>
 
-## Novidades da versão 1.2.5
+---
 
-- Navegação sequencial refeita: cada ficha é confirmada pelo nome/rota, lida e fechada com retorno explícito aos resultados antes da próxima empresa.
-- O service worker salva os lotes em chrome.storage.local e só confirma a transmissão depois da gravação.
-- Monitoramento separado de comunicação e avanço real, com identificação da última etapa travada e cancelamento cooperativo.
-- Coleta processa uma ficha por vez, salva a cada dois leads e aguarda a lista carregar novos cartões.
-- Lista de leads paginada em blocos de 50 para reduzir o trabalho de renderização.
-- Limite máximo alinhado em 500 empresas por coleta; valor 0 percorre os resultados disponíveis até o limite de segurança.
-- Reconhecimento de mais variações de contêineres e rotas do Google Maps, incluindo links de ficha e links com `cid`.
-- Espera pelos resultados ampliada para 30 segundos e mensagem de erro com diagnóstico de contêineres e links detectados.
-- Motivo de encerramento informado quando a lista deixa de apresentar novos cartões ou quando o limite de segurança é atingido.
-- O painel diferencia meta atingida de coleta parcial e mostra fichas analisadas, descartes e quanto faltou para a meta.
-- Limite de 500 aplicado de forma consistente no painel e no coletor.
+## Prévia da interface
 
+![Prévia ilustrativa do Prospectra 2.0, com dados fictícios](docs/assets/interface-preview.svg)
 
-**Prospectra 1.2.5** é uma extensão Manifest V3 para Chrome que transforma resultados do Google Maps em uma base organizada de prospecção local.
+<sub>Composição visual ilustrativa. Os números exibidos são fictícios e não representam resultados de clientes ou testes de desempenho.</sub>
 
-## Novidades da versão 1.1.0
+## O que é o Prospectra?
 
-- Pesquisa iniciada dentro da extensão com **termo + cidade/região**.
-- Quantidade configurável de **1 a 500 leads** por coleta, sem o teto anterior de 40.
-- Percurso progressivo da lista do Google Maps para carregar e processar resultados além do primeiro lote visível.
-- Filtro de **nota mínima**: qualquer avaliação, 3,0+, 3,5+, 4,0+, 4,5+ ou 5,0. Leads abaixo do mínimo e leads sem avaliação identificável são descartados quando o filtro está ativo.
-- Telefone normalizado em coluna própria, sem substituir o número por um link.
-- Link `https://wa.me/` separado do telefone e do site oficial.
-- Nome e categoria do lead em colunas independentes.
-- Exportação **Excel `.xlsx` real**, com cabeçalho formatado, linhas alternadas, filtros, larguras de coluna ajustadas e primeira linha congelada.
-- CSV atualizado com campos separados, incluindo telefone, WhatsApp, site, e-mail, categoria, cidade, termo e links.
-- Migração dos registros antigos que tinham URLs do WhatsApp misturadas nos campos de telefone ou site.
+O Prospectra transforma pesquisas públicas do Google Maps em uma base estruturada de prospecção. A extensão coleta informações empresariais disponíveis na página, pode enriquecer os registros com dados publicados nos sites das empresas e oferece ferramentas para organizar o relacionamento comercial.
+
+A versão 2.0.0 expande o produto para além da captura: inclui banco local IndexedDB, funil de vendas, histórico de interações, follow-ups, pesquisas em fila, relatórios, importação/exportação e conectores opcionais.
+
+**O princípio do produto é local-first:** sem ativar uma integração externa, os dados permanecem no perfil local do Chrome. Sincronização em nuvem e envio ao Google Sheets são ações configuradas e iniciadas pelo próprio usuário.
+
+## Visão do produto
+
+### Captura e enriquecimento
+
+- Coleta progressiva das fichas de empresas que o Google Maps apresenta na página.
+- Filtros de nota mínima e quantidade configurável.
+- Identificação por Place ID quando o identificador está disponível.
+- Detecção de mudanças no DOM, múltiplos seletores e área de rolagem.
+- Pausar, continuar e cancelar a coleta.
+- Recuperação de abertura de ficha com nova tentativa controlada.
+- Diagnóstico técnico copiável para investigar falhas.
+- Interrupção segura quando aparecem CAPTCHA, tela de verificação ou limitação de acesso.
+- Enriquecimento opcional com e-mails, telefones, CNPJ numérico/alfanumérico, redes sociais, horários e metadados básicos do site.
+- Verificação de disponibilidade HTTP e consulta DNS/MX do domínio.
+
+### CRM e relacionamento
+
+- Funil: Novo, Analisado, Contatado, Interessado, Negociação, Cliente e Perdido.
+- Quadro Kanban com movimentação por arrastar e soltar.
+- Histórico de ligações, reuniões, mensagens e observações.
+- Follow-ups com alertas opcionais do Chrome.
+- Lista de não contatar.
+- Etiquetas, responsável comercial e modelos de abordagem.
+- Pontuação de qualidade configurável, de 0 a 100.
+- WhatsApp com mensagem pré-preenchida, sempre com envio manual pelo usuário.
+
+### Dados e relatórios
+
+- Banco local IndexedDB com migração automática dos registros antigos.
+- Deduplicação por Place ID, URL, telefone, nome e endereço.
+- Histórico de avaliações e origem/confiança dos campos.
+- Dashboard por etapa comercial e região.
+- Exportação Excel e CSV, incluindo campos selecionáveis e mapeamentos básicos para CRMs.
+- Importação de Excel XLSX, CSV e restauração de backup JSON.
+- Backup completo de leads, interações, pesquisas e configurações.
+
+### Integrações opcionais
+
+- **Google Sheets:** envio para um Web App próprio do Google Apps Script.
+- **Supabase:** autenticação e sincronização de leads entre dispositivos usando RLS.
+- Não é necessário configurar essas integrações para usar a captura ou o CRM local.
+
+> **Importante:** o Prospectra lê a interface pública carregada no navegador. Ele não usa uma API oficial de dados do Google Maps, não garante que todos os resultados sejam apresentados e não contorna CAPTCHA, login, bloqueios, paywalls ou limites do serviço.
 
 ## Instalação no Chrome
 
-1. Baixe e extraia o ZIP da extensão.
-2. Abra `chrome://extensions` no Chrome.
-3. Ative **Modo do desenvolvedor**.
-4. Clique em **Carregar sem compactação**.
-5. Selecione a pasta `Prospectra` que contém `manifest.json`.
-6. Fixe o ícone do Prospectra na barra do Chrome.
+### Opção A — Instalação para uso
 
-## Como pesquisar
+1. Na página do repositório, clique em **Code → Download ZIP**.
+2. Extraia o arquivo ZIP em uma pasta permanente.
+3. Abra chrome://extensions no Chrome.
+4. Ative **Modo do desenvolvedor**.
+5. Clique em **Carregar sem compactação**.
+6. Selecione a pasta extraída que contém manifest.json.
+7. Fixe o ícone do Prospectra na barra do Chrome.
+8. Abra o painel lateral pelo ícone da extensão.
 
-1. Abra o painel lateral do Prospectra.
-2. Digite o segmento no campo **O que você quer encontrar?** (ex.: `clínicas odontológicas`).
-3. Informe a cidade ou região (ex.: `Guarulhos, SP`).
-4. Clique em **Pesquisar termo + cidade no Maps**.
-5. Aguarde o Google Maps carregar os resultados.
-6. Escolha a quantidade desejada (1 a 500) e a nota mínima.
-7. Clique em **Coletar até a quantidade escolhida**.
+### Opção B — Instalação para desenvolvimento
 
-A extensão percorre a lista de resultados progressivamente. A quantidade coletada depende dos resultados que o Google Maps realmente disponibilizar para aquela combinação de termo, cidade, filtros e sessão. Pedir 100 não significa que existem 100 resultados elegíveis. O valor 0 percorre os resultados que o Maps disponibilizar até o limite de segurança interno. O painel informa quantos foram coletados, quantas fichas foram analisadas, quantos foram descartados pelo critério de avaliação e o motivo da interrupção quando a meta não é atingida. O número que faltou para a meta não representa uma contagem de empresas restantes no Google Maps.
+Requer Git e Node.js 20.12 ou superior para executar os testes de importação XLSX.
 
-## Campos coletados
+~~~powershell
+git clone https://github.com/Louissdk/Prospectra.git
+cd Prospectra
+npm install --no-save --no-package-lock jsdom@26.1.0
+npm run check
+npm test
+~~~
 
-- Nome do lead.
-- Categoria do lead.
-- Telefone em texto simples e normalizado.
-- Link direto do WhatsApp (`wa.me`), em coluna separada.
-- Endereço.
-- Site oficial informado na ficha pública.
-- E-mails publicados encontrados no site e em páginas de contato.
-- Nota e quantidade de avaliações.
-- Cidade/região e termo pesquisado.
-- Link da ficha no Google Maps.
+Depois, carregue a pasta do repositório em chrome://extensions usando **Carregar sem compactação**.
 
-O Google Maps normalmente não fornece e-mail diretamente. O Prospectra tenta localizá-lo no site público e em até duas páginas internas de contato/sobre. **“Não localizado” não significa que a empresa não tenha e-mail**: o endereço pode não estar publicado, estar protegido, ser carregado por JavaScript ou exigir interação.
+## Tutorial: sua primeira prospecção
 
-## Exportação da planilha
+1. Abra o Prospectra e vá para **Visão geral**.
+2. Digite um segmento, por exemplo, clínicas odontológicas.
+3. Informe a região, por exemplo, Guarulhos, SP.
+4. Defina uma meta de leads e a nota mínima.
+5. Deixe **Pular empresas já salvas** ativo para evitar reprocessar registros conhecidos.
+6. Clique em **Abrir pesquisa no Maps** e aguarde os cartões carregarem.
+7. Volte ao painel e clique em **Iniciar coleta**.
+8. Pause ou continue a tarefa quando necessário. Os lotes confirmados são salvos progressivamente.
+9. Acesse **Leads** ou **Funil** para organizar os registros.
+10. Exporte os dados ou faça um backup em **Configurações**.
 
-Prefira **Excel (.xlsx)** para obter formatação de cabeçalho, filtros, largura de colunas, linhas alternadas e cabeçalho congelado. CSV também está disponível para importação em outros sistemas. O campo Telefone contém somente o número; o campo WhatsApp contém a URL `wa.me`; e o campo Site da empresa contém apenas o endereço do site, sem misturar canais.
+Para várias cidades ou segmentos, cadastre pesquisas em **Pesquisas** e execute a fila. Consulte o [tutorial completo](docs/GUIA-RAPIDO.md).
 
-## Permissões e privacidade
+## Atualizar sua instalação
 
-- `activeTab` e `scripting`: permitem ler a aba do Google Maps quando o usuário inicia a coleta.
-- `storage`: mantém os leads no armazenamento local do Chrome.
-- `sidePanel`: apresenta o painel lateral.
-- `downloads`: permite exportar os dados.
-- A permissão opcional `http://*/*` e `https://*/*` só é solicitada quando a busca automática de e-mails está marcada. Sem aprovação, a coleta de empresas continua, mas o enriquecimento de e-mails é pulado.
-- Não existe conta, analytics, servidor próprio ou sincronização remota nesta versão.
+Se você instalou a partir de um clone Git, execute no PowerShell:
+
+~~~powershell
+git -C "C:\Users\luisf\Downloads\Prospectra" pull --ff-only origin main
+~~~
+
+Depois abra chrome://extensions, clique em **Recarregar** no Prospectra e atualize a página do Google Maps.
+
+Se instalou pelo ZIP, baixe a versão atualizada, extraia em uma pasta nova e carregue a nova pasta. Faça backup antes de remover a instalação antiga.
+
+## Integrações
+
+| Integração | Para que serve | Configuração |
+|---|---|---|
+| Google Sheets | Enviar e atualizar registros em uma planilha própria | [Tutorial Apps Script](docs/integrations/google-sheets.md) |
+| Supabase | Sincronizar leads entre instalações e dispositivos | [Tutorial Supabase](docs/integrations/supabase.md) |
+| HubSpot / Pipedrive / Salesforce | Exportação CSV com cabeçalhos compatíveis básicos | Menu Configurações → Exportação |
+
+As integrações não são ativadas automaticamente. A extensão pede permissão de host quando você configura e inicia uma integração.
+
+## Documentação
+
+| Documento | Conteúdo |
+|---|---|
+| [Guia rápido](docs/GUIA-RAPIDO.md) | Instalação, primeira coleta, CRM, exportação e backup |
+| [Histórico de versões](CHANGELOG.md) | O que cada atualização trouxe |
+| [Arquitetura](docs/ARQUITETURA.md) | Componentes, fluxo de dados e armazenamento |
+| [Solução de problemas](docs/SOLUCAO-DE-PROBLEMAS.md) | Diagnósticos e correções comuns |
+| [Privacidade e proteção de dados](docs/PRIVACIDADE-E-LGPD.md) | Dados tratados, permissões e controles |
+| [Google Sheets](docs/integrations/google-sheets.md) | Implantação do Apps Script |
+| [Supabase](docs/integrations/supabase.md) | Autenticação, schema e sincronização |
+| [Schema SQL](docs/supabase/schema.sql) | Tabela, índices e políticas RLS |
+| [Roadmap](docs/ROADMAP.md) | Funcionalidades concluídas e próximas evoluções |
+| [Apresentação comercial](docs/MATERIAIS-COMERCIAIS.md) | Posicionamento, público-alvo e checklist de venda |
+| [Checklist de release](docs/RELEASE-CHECKLIST.md) | Processo de validação e publicação |
+| [Contribuição](CONTRIBUTING.md) | Padrões para desenvolvimento |
+| [Segurança](SECURITY.md) | Relato responsável de vulnerabilidades |
+
+## Arquitetura
+
+~~~mermaid
+flowchart TD
+  A[Google Maps no Chrome] --> B[content.js]
+  B --> C[Leitura sequencial e checkpoints]
+  C --> D[service-worker.js]
+  D --> E[IndexedDB]
+  E --> F[sidepanel.js]
+  F --> G[Dashboard e CRM]
+  F --> H[Excel / CSV / JSON]
+  F --> I[Google Sheets opcional]
+  F --> J[Supabase opcional]
+  D --> K[Enriquecimento de sites públicos]
+  K --> E
+~~~
+
+**Stack:** Chrome Extension Manifest V3, JavaScript ES Modules, Chrome Storage para migração legada, IndexedDB para a base atual, Node.js para testes e GitHub Actions para validação contínua.
 
 ## Limitações conhecidas
 
-1. A estrutura HTML do Google Maps muda sem aviso. Seletores podem deixar de funcionar e exigir atualização.
-2. A extensão tenta percorrer os resultados carregados por rolagem progressiva, mas o Google pode limitar a quantidade, aplicar filtros internos, ocultar cartões ou encerrar a paginação antes do número solicitado.
-3. A abertura de fichas é sequencial para evitar sobrecarregar o Maps; coletas grandes podem demorar.
-4. O Google pode apresentar CAPTCHA, exigir login ou limitar a navegação. O Prospectra não contorna CAPTCHA, login, paywall ou controles de acesso.
-5. Alguns sites bloqueiam consultas, exigem JavaScript, Cloudflare, consentimento ou login. Nesses casos, o e-mail pode não ser localizado.
-6. A extensão não garante que todos os leads tenham telefone, site ou e-mail: esses campos dependem da informação publicamente disponível em cada ficha e site.
-7. Use a ferramenta conforme os termos dos serviços utilizados, a legislação aplicável e as regras de proteção de dados. Respeite pedidos de não contato.
+- A interface do Google Maps muda sem aviso. Os seletores alternativos reduzem o risco, mas não garantem compatibilidade permanente.
+- Quantidade solicitada não significa quantidade de empresas existentes. O Maps pode apresentar menos resultados do que a meta.
+- A coleta é sequencial para preservar estabilidade. Pesquisas longas podem demorar.
+- A busca de contatos depende de dados publicados nos sites. Alguns sites bloqueiam requisições ou renderizam conteúdo somente via JavaScript.
+- A consulta MX indica se o domínio publica registros de recebimento de e-mail; não comprova a existência de uma caixa postal nem a entrega de mensagens.
+- A importação suporta XLSX, CSV e backup JSON. Arquivos XLSX protegidos por senha ou estruturas ZIP64 não são suportados.
+- A cobertura regional mostra a distribuição da base por cidade/região e fornece links para pesquisar no Maps; não é um mapa geográfico com coordenadas.
+- A sincronização Supabase não propaga exclusões de registros. Faça backup antes de operações de limpeza.
+- Testes automatizados usam DOM simulado; eles não substituem testes manuais com uma sessão real do Google Maps.
 
-## Desenvolvimento e testes
+## Privacidade e uso responsável
 
-Requer Node.js 18+:
+Use apenas dados necessários à finalidade comercial legítima, respeite solicitações de não contato e as regras aplicáveis de proteção de dados. A extensão inclui uma lista local de não contatar, mas a decisão e a base legal para cada abordagem continuam sendo responsabilidade do operador.
 
-```bash
-npm test
-npm run check
-```
+Leia a [Política de privacidade](PRIVACY.md) e o [guia de privacidade e proteção de dados](docs/PRIVACIDADE-E-LGPD.md).
 
-O teste de workbook também grava `/tmp/prospectra-workbook-test.xlsx` para validação estrutural com ferramentas compatíveis com XLSX.
+## Licença
 
-## Estrutura
+O repositório é público para inspeção e avaliação, mas o código e a marca Prospectra permanecem proprietários. A publicação pública não concede autorização para revenda, redistribuição ou uso comercial do código. Consulte [LICENSE.md](LICENSE.md).
 
-```text
-Prospectra/
-├── manifest.json
-├── service-worker.js
-├── content.js
-├── contact-utils.js
-├── workbook.js
-├── sidepanel.html
-├── sidepanel.css
-├── sidepanel.js
-├── package.json
-├── icons/
-└── tests/
-```
+---
 
-## Publicar no GitHub
-
-A publicação utiliza GitHub CLI autenticado. Na pasta extraída, execute o arquivo diretamente:
-
-```powershell
- gh auth login
- .\publicar-github.ps1 -Visibility Public
-```
-
-O script usa `$PSScriptRoot`, portanto deve ser executado como arquivo `.ps1`, não colado linha por linha no terminal.
-
-
-## 1.2.1 — Correção de coleta e BFCache
-
-- A captura inicia com confirmação imediata e recebe resultados em lotes curtos, sem manter aberta uma resposta de mensagem durante a navegação entre fichas do Google Maps.
-- Progresso e lotes são correlacionados por identificador de tarefa.
-- Corrigido o escopo da variável `opened` ao abrir fichas.
-- Quantidade `0` percorre os resultados disponíveis até a lista deixar de apresentar novos cartões; não é garantia de cobrir todo o índice do Google Maps.
-- Indicador adicional para empresas com telefone ou WhatsApp.
-
-
-## 1.2.2 — Coleta progressiva e painel simplificado
-
-- Leads são enviados ao painel em lotes de 3 durante a coleta e salvos progressivamente.
-- Tempo máximo para abrir uma ficha reduzido para 2,6 segundos; retorno à lista limitado a 2,4 segundos e executado apenas quando o feed desaparece.
-- O painel monitora comunicação e progresso separadamente e cancela a tarefa quando uma etapa não avança.
-- Removida a exportação JSON e a seção de preferências sem controles funcionais.
-- A limpeza da lista foi movida para um botão ao lado do título dos leads.
+<div align="center">
+  <strong>Prospectra</strong><br>
+  <sub>Do primeiro resultado à próxima conversa comercial.</sub><br>
+  <sub>Não afiliado, endossado ou patrocinado pelo Google.</sub>
+</div>

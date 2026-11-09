@@ -4,145 +4,179 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>Prospectra</title>
+  <meta name="theme-color" content="#0b1020">
+  <title>Prospectra | Sales Intelligence</title>
+  <link rel="icon" href="icons/icon32.png">
   <link rel="stylesheet" href="sidepanel.css">
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <div class="brand-lockup">
-        <img src="icons/icon48.png" alt="" class="brand-icon">
-        <div>
-          <div class="brand-name">prospectra<span>.</span></div>
-          <div class="brand-subtitle">MAPS LEAD INTELLIGENCE</div>
-        </div>
+<div class="app-shell">
+  <header class="topbar">
+    <a class="brand" href="#overview" aria-label="Prospectra início">
+      <img src="icons/prospectra-logo.svg" alt="" class="brand-icon">
+      <span class="brand-word">prospectra<span>.</span><small>SALES INTELLIGENCE</small></span>
+    </a>
+    <div class="topbar-right"><span class="local-chip"><i></i> LOCAL-FIRST</span><button id="diagnosticsButton" class="icon-button" title="Diagnóstico técnico" aria-label="Diagnóstico técnico">⌘</button></div>
+  </header>
+
+  <nav class="main-nav" aria-label="Navegação principal">
+    <button class="nav-tab active" data-view-target="overview"><span>◫</span> Visão geral</button>
+    <button class="nav-tab" data-view-target="leads"><span>◎</span> Leads</button>
+    <button class="nav-tab" data-view-target="pipeline"><span>▥</span> Funil</button>
+    <button class="nav-tab" data-view-target="research"><span>⌕</span> Pesquisas</button>
+    <button class="nav-tab" data-view-target="settings"><span>⚙</span> Ajustes</button>
+  </nav>
+
+  <div id="globalStatus" class="global-status" role="status" aria-live="polite"></div>
+  <main>
+    <section class="view active" id="view-overview" data-view="overview">
+      <div class="page-intro">
+        <div><div class="eyebrow"><span class="pulse"></span> PROSPECÇÃO INTELIGENTE</div><h1>Encontre oportunidades.<br><em>Construa relações.</em></h1><p>Capture empresas, enriqueça contatos e acompanhe cada oportunidade em um só lugar.</p><div class="source-pill"><span class="source-mark">G</span><span id="tabStatus">Verificando aba ativa…</span></div></div>
+        <span class="version-pill">PRO 2.0</span>
       </div>
-    </header>
 
-    <main>
-      <section class="hero">
-        <div class="eyebrow"><span class="live-dot"></span> PROSPECÇÃO LOCAL</div>
-        <h1>Encontre empresas.<br><span>Descubra contatos.</span></h1>
-        <p>Transforme resultados do Google Maps em uma lista organizada de potenciais clientes.</p>
-        <div class="source-pill"><span class="source-mark">G</span><span id="tabStatus">Aguardando Google Maps</span></div>
-      </section>
-
-      <section class="capture-card" aria-labelledby="captureTitle">
-        <div class="section-heading">
-          <div>
-            <div class="eyebrow">NOVA COLETA</div>
-            <h2 id="captureTitle">Capturar empresas</h2>
-          </div>
-          <span class="step-number">01</span>
+      <section class="panel capture-panel">
+        <div class="panel-heading"><div><span class="eyebrow">NOVA PESQUISA</span><h2>Encontrar empresas</h2></div><span class="step-pill">01 / CAPTURA</span></div>
+        <div class="form-grid">
+          <label class="field field-full">Segmento ou tipo de empresa<input id="searchTerm" maxlength="120" placeholder="Ex.: clínicas odontológicas" autocomplete="off"></label>
+          <label class="field field-full">Cidade ou região<input id="searchCity" maxlength="120" placeholder="Ex.: Guarulhos, SP" autocomplete="off"></label>
+          <label class="field">Meta de leads<input id="captureLimit" type="number" min="0" max="500" step="1" value="40"><small>0 = resultados disponíveis</small></label>
+          <label class="field">Nota mínima<select id="minimumRating"><option value="0">Qualquer avaliação</option><option value="3">3,0+</option><option value="3.5">3,5+</option><option value="4" selected>4,0+</option><option value="4.5">4,5+</option><option value="5">5,0</option></select><small>Sem nota é descartado com filtro ativo</small></label>
         </div>
-        <div class="search-form-grid">
-          <div class="form-field form-field-wide">
-            <label for="searchTerm" class="field-label">O que você quer encontrar?</label>
-            <input id="searchTerm" class="text-control" type="text" maxlength="120" placeholder="Ex.: clínicas odontológicas" autocomplete="off">
-          </div>
-          <div class="form-field form-field-wide">
-            <label for="searchCity" class="field-label">Cidade ou região</label>
-            <input id="searchCity" class="text-control" type="text" maxlength="120" placeholder="Ex.: Guarulhos, SP" autocomplete="off">
-          </div>
-          <button id="searchMapsButton" class="secondary-button search-maps-button" type="button">⌕ Pesquisar termo + cidade no Maps</button>
+        <div class="capture-toggles">
+          <label class="toggle-line"><input id="autoEnrich" type="checkbox" checked><span class="toggle"></span><span><b>Enriquecer dados automaticamente</b><small>E-mails, telefones, redes sociais, CNPJ e dados básicos do site.</small></span></label>
+          <label class="toggle-line"><input id="skipExisting" type="checkbox" checked><span class="toggle"></span><span><b>Pular empresas já salvas</b><small>Retoma pesquisas sem duplicar registros conhecidos.</small></span></label>
         </div>
-        <div class="capture-options-grid">
-          <div class="form-field">
-            <label for="captureLimit" class="field-label">Quantidade de leads</label>
-            <input id="captureLimit" class="text-control" type="number" min="0" max="500" step="1" value="40" inputmode="numeric">
-            <small class="field-hint">Até 500 por coleta. Use 0 para percorrer os resultados disponíveis.</small>
-          </div>
-          <div class="form-field">
-            <label for="minimumRating" class="field-label">Nota mínima</label>
-            <select id="minimumRating" class="select-control">
-              <option value="0">Qualquer avaliação</option>
-              <option value="3">3,0 estrelas ou mais</option>
-              <option value="3.5">3,5 estrelas ou mais</option>
-              <option value="4" selected>4,0 estrelas ou mais</option>
-              <option value="4.5">4,5 estrelas ou mais</option>
-              <option value="5">Somente 5 estrelas</option>
-            </select>
-            <small class="field-hint">Sem nota identificável, o lead será descartado quando houver filtro.</small>
-          </div>
+        <div class="action-row">
+          <button id="searchMapsButton" class="button button-quiet">Abrir pesquisa no Maps ↗</button>
+          <button id="captureButton" class="button button-primary">Iniciar coleta <span>→</span></button>
+          <button id="captureOpenButton" class="button button-quiet">Ficha aberta</button>
         </div>
-        <label class="check-row" for="autoEnrich">
-          <input id="autoEnrich" type="checkbox" checked>
-          <span class="custom-check"></span>
-          <span><strong>Localizar e-mails automaticamente</strong><small>Consulta o site e páginas públicas de contato.</small></span>
-        </label>
-        <div class="button-stack">
-          <button id="captureButton" class="primary-button" type="button">
-            <span class="button-icon">⌕</span><span>Coletar leads</span><span class="button-arrow">↗</span>
-          </button>
-          <button id="captureOpenButton" class="secondary-button" type="button">Capturar somente a empresa aberta</button>
-        </div>
-        <div id="progressWrap" class="progress-wrap" hidden>
-          <div class="progress-meta"><span id="progressLabel">Preparando coleta</span><strong id="progressValue">0%</strong></div>
+        <div id="progressWrap" class="progress-box" hidden>
+          <div class="progress-head"><span id="progressLabel">Preparando coleta</span><strong id="progressValue">0%</strong></div>
           <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+          <div class="progress-actions"><button id="pauseButton" class="button button-mini">Pausar</button><button id="cancelButton" class="button button-mini button-danger">Cancelar</button></div>
         </div>
-        <div id="statusMessage" class="status-message" role="status" aria-live="polite">Informe um segmento e uma cidade para pesquisar, ou abra uma pesquisa do Google Maps manualmente.</div>
+        <div id="statusMessage" class="status-message" role="status" aria-live="polite">Conecte uma pesquisa do Google Maps para começar. Seus dados ficam neste navegador até você exportar ou ativar uma integração.</div>
       </section>
 
-      <section class="metrics-grid" aria-label="Resumo dos contatos">
-        <article class="metric-card">
-          <span class="metric-label">EMPRESAS</span>
-          <strong id="totalCount">0</strong>
-          <span class="metric-foot">na sua lista</span>
-        </article>
-        <article class="metric-card">
-          <span class="metric-label">COM SITE</span>
-          <strong id="websiteCount">0</strong>
-          <span class="metric-foot">presença online</span>
-        </article>
-        <article class="metric-card metric-highlight">
-          <span class="metric-label">COM E-MAIL</span>
-          <strong id="emailCount">0</strong>
-          <span class="metric-foot">contato localizado</span>
-        </article>
-        <article class="metric-card">
-          <span class="metric-label">COM TELEFONE / WPP</span>
-          <strong id="phoneCount">0</strong>
-          <span class="metric-foot">contato disponível</span>
-        </article>
-      </section>
+      <div class="section-title"><div><span class="eyebrow">SEU DESEMPENHO</span><h2>Visão da operação</h2></div><span class="muted-label">DADOS LOCAIS</span></div>
+      <div class="metric-grid">
+        <article class="metric-card"><span class="metric-label">EMPRESAS</span><strong id="totalCount">0</strong><small>Total na base</small></article>
+        <article class="metric-card"><span class="metric-label">CONTATOS</span><strong id="contactCount">0</strong><small>Com telefone ou e-mail</small></article>
+        <article class="metric-card"><span class="metric-label">COM E-MAIL</span><strong id="emailCount">0</strong><small>Endereço encontrado</small></article>
+        <article class="metric-card metric-accent"><span class="metric-label">QUALIDADE MÉDIA</span><strong id="qualityAverage">0<span>/100</span></strong><small>Score de completude</small></article>
+      </div>
 
-      <section class="leads-section">
-        <div class="list-heading">
-          <div>
-            <div class="eyebrow">BASE DE PROSPECÇÃO</div>
-            <h2>Seus leads <span id="listCount" class="count-chip">0</span></h2>
-          </div>
-          <div class="list-actions">
-            <button id="refreshButton" class="icon-button small" type="button" title="Atualizar lista" aria-label="Atualizar lista">↻</button>
-            <button id="clearButton" class="icon-button small clear-icon-button" type="button" title="Apagar todos os leads" aria-label="Apagar todos os leads">⌫</button>
-          </div>
-        </div>
-        <div class="toolbar">
-          <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Buscar empresa, cidade, e-mail..."></label>
-          <select id="filterSelect" class="filter-select" aria-label="Filtrar empresas">
-            <option value="all">Todas</option>
-            <option value="website">Com site</option>
-            <option value="email">Com e-mail</option>
-            <option value="noemail">Sem e-mail localizado</option>
-          </select>
-        </div>
-        <div id="leadList" class="lead-list">
-          <div class="empty-state">
-            <div class="empty-icon">⌖</div>
-            <strong>Sua lista começa aqui</strong>
-            <span>As empresas capturadas aparecerão neste painel.</span>
-          </div>
-        </div>
-        <button id="enrichButton" class="enrich-button" type="button" disabled>✧ Buscar e-mails dos leads pendentes</button>
-        <div class="export-row">
-          <button id="exportXlsxButton" class="export-button" type="button" disabled><span>↓</span> Excel (.xlsx)</button>
-          <button id="exportCsvButton" class="export-button export-secondary" type="button" disabled>CSV</button>
-        </div>
+      <div class="overview-grid">
+        <section class="panel">
+          <div class="panel-heading"><div><span class="eyebrow">PIPELINE</span><h2>Etapas comerciais</h2></div><button class="text-button" data-view-target="pipeline">Abrir funil ↗</button></div>
+          <div id="stageSummary" class="stage-summary"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-heading"><div><span class="eyebrow">PRÓXIMOS PASSOS</span><h2>Follow-ups</h2></div><button class="text-button" data-view-target="leads">Ver leads ↗</button></div>
+          <div id="followUpSummary" class="follow-up-summary"></div>
+        </section>
+      </div>
+      <section class="panel coverage-panel">
+        <div class="panel-heading"><div><span class="eyebrow">COBERTURA GEOGRÁFICA</span><h2>Onde estão seus leads</h2></div><span id="cityCount" class="count-pill">0 regiões</span></div>
+        <div id="coverageSummary" class="coverage-list"></div>
       </section>
+    </section>
 
-    </main>
-    <footer class="footer"><span>PROSPECTRA 1.2.5</span><span>FEITO PARA PROSPECÇÃO RESPONSÁVEL</span></footer>
-  </div>
-  <script type="module" src="sidepanel.js"></script>
+    <section class="view" id="view-leads" data-view="leads">
+      <div class="view-heading"><div><span class="eyebrow">BASE COMERCIAL</span><h1>Seus leads</h1><p>Dados, qualidade e relacionamento em um único registro.</p></div><button id="refreshButton" class="icon-button" title="Atualizar">↻</button></div>
+      <div class="toolbar">
+        <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Empresa, contato, cidade, etiqueta..."></label>
+        <select id="filterSelect" aria-label="Filtrar leads"><option value="all">Todos os leads</option><option value="website">Com site</option><option value="email">Com e-mail</option><option value="phone">Com telefone</option><option value="followup">Follow-up pendente</option><option value="dnc">Não contatar</option></select>
+        <select id="sortSelect" aria-label="Ordenar leads"><option value="recent">Mais recentes</option><option value="score">Maior qualidade</option><option value="name">Nome A–Z</option><option value="rating">Melhor avaliação</option><option value="followup">Próximo follow-up</option></select>
+      </div>
+      <div class="list-meta"><span id="listCount">0 leads</span><span id="selectedHint">Selecione uma ação em cada registro</span></div>
+      <div id="leadList" class="lead-list"><div class="empty-state"><span class="empty-art">◎</span><b>Sua base começa aqui</b><small>Pesquise empresas no Google Maps e os registros aparecerão nesta área.</small></div></div>
+      <div class="export-inline"><button id="enrichPendingButton" class="button button-quiet" disabled>Enriquecer contatos pendentes</button></div>
+      <div class="export-inline"><button id="exportCsvButton" class="button button-quiet" disabled>Exportar CSV</button><button id="exportXlsxButton" class="button button-quiet" disabled>Exportar Excel</button></div>
+    </section>
+
+    <section class="view" id="view-pipeline" data-view="pipeline">
+      <div class="view-heading"><div><span class="eyebrow">GESTÃO DE OPORTUNIDADES</span><h1>Funil comercial</h1><p>Arraste empresas entre as etapas para atualizar o andamento.</p></div></div>
+      <div id="pipelineBoard" class="pipeline-board"></div>
+    </section>
+
+    <section class="view" id="view-research" data-view="research">
+      <div class="view-heading"><div><span class="eyebrow">PROSPECÇÃO EM LOTE</span><h1>Pesquisas</h1><p>Salve combinações de segmento e região. A fila executa uma pesquisa por vez.</p></div></div>
+      <section class="panel">
+        <div class="panel-heading"><div><span class="eyebrow">NOVA PESQUISA SALVA</span><h2>Adicionar à fila</h2></div></div>
+        <div class="form-grid">
+          <label class="field field-full">Segmento<input id="queueTerm" maxlength="120" placeholder="Ex.: oficinas mecânicas"></label>
+          <label class="field field-full">Cidade ou região<input id="queueCity" maxlength="120" placeholder="Ex.: Guarulhos, SP"></label>
+          <label class="field">Meta<input id="queueLimit" type="number" min="0" max="500" value="40"></label>
+          <label class="field">Nota mínima<select id="queueRating"><option value="0">Qualquer</option><option value="3">3,0+</option><option value="3.5">3,5+</option><option value="4" selected>4,0+</option><option value="4.5">4,5+</option><option value="5">5,0</option></select></label>
+        </div>
+        <div class="action-row"><button id="saveSearchButton" class="button button-quiet">Salvar pesquisa</button><button id="enqueueSearchButton" class="button button-primary">Adicionar à fila →</button></div>
+      </section>
+      <section class="panel queue-panel">
+        <div class="panel-heading"><div><span class="eyebrow">EXECUÇÃO SEQUENCIAL</span><h2>Fila de pesquisas <span id="queueCount" class="count-pill">0</span></h2></div><div class="panel-actions"><button id="clearQueueButton" class="text-button">Limpar</button><button id="runQueueButton" class="button button-primary button-small">Executar fila</button></div></div>
+        <div id="queueList" class="queue-list"><div class="empty-state compact"><b>Nenhuma pesquisa na fila</b><small>Adicione um segmento e uma região acima.</small></div></div>
+        <button id="stopQueueButton" class="button button-danger button-full" hidden>Parar fila</button>
+      </section>
+      <section class="panel">
+        <div class="panel-heading"><div><span class="eyebrow">BIBLIOTECA</span><h2>Pesquisas salvas</h2></div></div>
+        <div id="savedSearchList" class="saved-search-list"></div>
+      </section>
+    </section>
+
+    <section class="view" id="view-settings" data-view="settings">
+      <div class="view-heading"><div><span class="eyebrow">PERSONALIZAÇÃO E DADOS</span><h1>Configurações</h1><p>Controle seus dados, integrações e critérios de qualificação.</p></div></div>
+      <section class="panel">
+        <div class="panel-heading"><div><span class="eyebrow">SEU TIME</span><h2>Responsável comercial</h2></div></div>
+        <label class="toggle-line notification-setting"><input id="followUpNotifications" type="checkbox"><span class="toggle"></span><span><b>Ativar lembretes de follow-up</b><small>O Chrome notificará quando um retorno agendado vencer. É necessária permissão de notificações.</small></span></label>
+        <label class="field">Nome do responsável<input id="ownerName" maxlength="100" placeholder="Ex.: Luis"></label>
+        <label class="field">Modelo de abordagem<textarea id="messageTemplate" rows="4" placeholder="Use {empresa}, {categoria}, {cidade} e {responsavel}."></textarea></label>
+        <button id="saveProfileButton" class="button button-primary button-full">Salvar personalização</button>
+      </section>
+      <section class="panel">
+        <div class="panel-heading"><div><span class="eyebrow">DADOS LOCAIS</span><h2>Backup e importação</h2></div><span class="secure-pill">INDEXEDDB</span></div>
+        <p class="panel-copy">Faça backup completo antes de trocar de computador ou limpar os dados do Chrome. Importe arquivos CSV, XLSX ou backups JSON do Prospectra.</p>
+        <div class="action-row"><button id="backupButton" class="button button-quiet">Baixar backup JSON</button><button id="importButton" class="button button-primary">Importar arquivo</button></div>
+        <input id="importFile" type="file" accept=".json,.csv,.xlsx,application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+        <div class="danger-zone"><button id="clearButton" class="text-button danger-text">Excluir toda a base local</button></div>
+      </section>
+      <section class="panel">
+        <div class="panel-heading"><div><span class="eyebrow">EXPORTAÇÃO</span><h2>Campos e formatos</h2></div></div>
+        <label class="field">Formato de CRM<select id="crmExportPreset"><option value="generic">CSV genérico</option><option value="hubspot">HubSpot</option><option value="pipedrive">Pipedrive</option><option value="salesforce">Salesforce (mapeamento básico)</option></select></label>
+        <div id="exportFields" class="export-fields"></div>
+        <button id="exportCustomButton" class="button button-primary button-full">Exportar campos selecionados</button>
+      </section>
+      <section class="panel">
+        <div class="panel-heading"><div><span class="eyebrow">QUALIFICAÇÃO</span><h2>Pontuação do lead</h2></div></div>
+        <p class="panel-copy">Ajuste o peso dos dados disponíveis. A nota mede completude e potencial de contato, não intenção real de compra.</p>
+        <div id="weightSettings" class="weight-settings"></div>
+        <button id="saveWeightsButton" class="button button-quiet button-full">Salvar pesos e recalcular</button>
+      </section>
+      <section class="panel">
+        <div class="panel-heading"><div><span class="eyebrow">INTEGRAÇÃO EXTERNA</span><h2>Google Sheets</h2></div><span class="optional-pill">OPCIONAL</span></div>
+        <p class="panel-copy">Use uma URL de Web App do Google Apps Script criada por você. O Prospectra não acessa sua conta Google nem guarda senha.</p>
+        <label class="field">URL do Web App<input id="sheetsUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec"></label>
+        <label class="field">Token obrigatório do Apps Script<input id="sheetsToken" type="password" autocomplete="off" placeholder="Token privado configurado no Apps Script" required></label>
+        <div class="action-row"><button id="saveSheetsButton" class="button button-quiet">Salvar URL</button><button id="sheetsSyncButton" class="button button-primary">Enviar leads</button></div>
+        <small class="helper-text">O tutorial de implantação está em docs/integrations/google-sheets.md.</small>
+      </section>
+      <section class="panel">
+        <div class="panel-heading"><div><span class="eyebrow">SINCRONIZAÇÃO EM NUVEM</span><h2>Supabase</h2></div><span class="optional-pill">OPCIONAL</span></div>
+        <p class="panel-copy">Sincronize a base entre computadores usando seu próprio projeto Supabase com autenticação e políticas RLS. Use somente a chave anon/public. Nunca coloque service_role aqui.</p>
+        <label class="field">Project URL<input id="supabaseUrl" type="url" placeholder="https://seu-projeto.supabase.co"></label>
+        <label class="field">Anon / publishable key<input id="supabaseAnonKey" type="password" autocomplete="off" placeholder="Chave pública do projeto"></label>
+        <label class="field">E-mail da conta<input id="supabaseEmail" type="email" autocomplete="username" placeholder="voce@exemplo.com"></label>
+        <label class="field">Senha (usada apenas para autenticar)<input id="supabasePassword" type="password" autocomplete="current-password" placeholder="Não é salva no Prospectra"></label>
+        <div class="action-row"><button id="supabaseLoginButton" class="button button-quiet">Entrar</button><button id="supabaseSignupButton" class="button button-quiet">Criar conta</button><button id="supabaseSyncButton" class="button button-primary">Sincronizar</button></div>
+        <div id="cloudStatus" class="helper-text">Desconectado. Configure o projeto e aplique o SQL do tutorial.</div>
+        <small class="helper-text">Consulte docs/integrations/supabase.md e docs/supabase/schema.sql.</small>
+      </section>
+      <section class="privacy-note"><b>Privacidade por padrão</b><p>Sem integração ativada, a base fica no IndexedDB deste perfil do Chrome. E-mails, telefones e redes sociais são buscados em páginas públicas. A sincronização só acontece quando você a inicia.</p><a href="PRIVACY.md" target="_blank">Política de privacidade ↗</a></section>
+    </section>
+  </main>
+  <footer class="footer"><span>PROSPECTRA · SALES INTELLIGENCE</span><span>v2.0.0</span></footer>
+</div>
+<script type="module" src="sidepanel.js"></script>
 </body>
 </html>

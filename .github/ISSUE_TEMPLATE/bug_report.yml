@@ -1,0 +1,67 @@
+name: Relatar um problema
+description: Informe um erro reproduzível no Prospectra.
+title: "[Bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Não inclua nomes reais de clientes, telefones, e-mails, planilhas, tokens ou senhas.
+  - type: input
+    id: version
+    attributes:
+      label: Versão do Prospectra
+      placeholder: "2.0.0"
+    validations:
+      required: true
+  - type: input
+    id: chrome
+    attributes:
+      label: Versão do Chrome
+      placeholder: "Versão exibida em chrome://settings/help"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área afetada
+      options:
+        - Coleta no Google Maps
+        - Enriquecimento de dados
+        - Leads e CRM
+        - Pesquisas em fila
+        - Exportação / importação
+        - Google Sheets
+        - Supabase
+        - Instalação / interface
+        - Outra
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para reproduzir
+      description: Use uma pesquisa sintética ou dados fictícios.
+      placeholder: "1. Abra...\n2. Clique...\n3. O erro aparece..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento esperado
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamento observado
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnóstico sanitizado
+      description: Remova URLs com tokens, dados de clientes e informações pessoais.
+      render: text
+    validations:
+      required: false

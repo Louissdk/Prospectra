@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { captureLeadKey, mergeLeadRecords } from '../capture-utils.js';
+import { captureLeadKey, captureLeadAliases, mergeLeadRecords } from '../capture-utils.js';
 
 test('deduplicates by Maps URL and preserves richer fields', () => {
   const existing = [{
@@ -25,7 +25,7 @@ test('deduplicates by Maps URL and preserves richer fields', () => {
   assert.equal(merged[0].collectedAt, '2026-11-01T10:00:00.000Z');
 });
 test('uses a stable name and phone fallback key', () => {
-  assert.equal(captureLeadKey({ name: 'Empresa X', phone: '(11) 99999-0000' }), 'empresa x|(11) 99999-0000');
+  assert.match(captureLeadKey({ name: 'Empresa X', phone: '(11) 99999-0000' }), /^name-phone:empresa x\|11999990000$/);
 });
 test('enforces storage cap and keeps most recent records', () => {
   const merged = mergeLeadRecords([], [
@@ -70,4 +70,14 @@ test('normalizes invalid and negative counters safely', () => {
   assert.equal(summary.filteredOut, 0);
   assert.equal(summary.scanned, 5);
   assert.equal(summary.remaining, 73);
+});
+
+test('merges alias matches even when the Maps URL changed', () => {
+  const existing=[{id:'old-id',name:'Empresa Exemplo',phone:'(11) 3333-4444',mapsUrl:'https://www.google.com/maps/place/Empresa+Exemplo'}];
+  const incoming=[{id:'new-id',name:'Empresa Exemplo',phone:'(11) 3333-4444',mapsUrl:'https://www.google.com/maps/place/Empresa+Exemplo+Unidade+2',website:'https://empresa.example'}];
+  const merged=mergeLeadRecords(existing,incoming);
+  assert.equal(merged.length,1);
+  assert.equal(merged[0].id,'old-id');
+  assert.equal(merged[0].website,'https://empresa.example');
+  assert.ok(captureLeadAliases(merged[0]).some((key)=>key.startsWith('place:')));
 });

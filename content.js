@@ -5,6 +5,7 @@
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   let activeCaptureTaskId = null;
   let activeCaptureCancelled = false;
+  let activeCapturePaused = false;
   let captureHeartbeatTimer = null;
 
   function startCaptureHeartbeat(taskId) {
@@ -208,6 +209,10 @@
       rating: parseRating(card),
       reviewCount: parseReviewCount(cardText),
       mapsUrl: absolute(anchor.href),
+      placeId: extractPlaceIdFromUrl(anchor.href),
+      phones: phoneFromCard(card) ? [phoneFromCard(card)] : [],
+      sourceMap: { name: 'google_maps', category: 'google_maps', phone: 'google_maps', address: 'google_maps', rating: 'google_maps' },
+      confidence: { name: name ? 'high' : 'low', category: categorySource ? 'high' : 'low', phone: phoneFromCard(card) ? 'medium' : 'unknown', address: address ? 'medium' : 'unknown' },
       source: 'Google Maps'
     };
   }
@@ -254,6 +259,34 @@
     return '';
   }
 
+  function extractPlaceIdFromUrl(rawUrl = '') {
+    try {
+      const url = new URL(rawUrl, location.href);
+      for (const key of ['query_place_id', 'place_id', 'placeid', 'cid']) {
+        const value = url.searchParams.get(key);
+        if (value) return key === 'cid' ? 'cid:' + value : value;
+      }
+      const data = url.href.match(/!1s(ChIJ[A-Za-z0-9_-]{8,}|0x[0-9a-f]+:0x[0-9a-f]+)/i);
+      if (data) return data[1];
+      const path = url.pathname.match(/\/maps\/place\/([^/]+)/i);
+      return path ? 'maps-path:' + decodeURIComponent(path[1]).toLowerCase() : '';
+    } catch { return ''; }
+  }
+  function extractPhonesFromRoot(root, fallback = '') {
+    const values = [];
+    for (const node of root.querySelectorAll('a[href^="tel:"], [data-item-id^="phone:tel:"], button[data-item-id^="phone:tel:"]')) {
+      const raw = node.getAttribute('href')?.replace(/^tel:/i, '') ||
+        node.getAttribute('data-item-id')?.replace(/^phone:tel:/i, '') ||
+        node.getAttribute('aria-label') || node.innerText || '';
+      const digits = String(raw).replace(/\D/g, '');
+      const validLength = [10, 11].includes(digits.length) || (digits.startsWith('55') && [12, 13].includes(digits.length));
+      if (!validLength) continue;
+      const phone = formatPhone(raw);
+      if (phone) values.push(phone);
+    }
+    if (fallback) values.push(fallback);
+    return [...new Set(values)];
+  }
   function extractDetail(card = {}, context = {}) {
     const root = detailRoot();
     const heading = root.querySelector('h1');
@@ -270,17 +303,35 @@
     const hrefPhone = phoneEl?.getAttribute('href')?.replace(/^tel:/i, '');
     const ariaPhone = phoneEl?.getAttribute('aria-label') || '';
     const phone = formatPhone(dataPhone || hrefPhone || ariaPhone || textOf(phoneEl)) || card.phone || '';
+    const phones = extractPhonesFromRoot(root, phone);
     const categoryEl = root.querySelector('button[jsaction*="category"], [class*="DkEaL"]');
     const emailLinks = [...root.querySelectorAll('a[href^="mailto:"]')].map((anchor) => anchor.href.replace(/^mailto:/i, '').split('?')[0]).filter(Boolean);
+    const pageText = clean(root.innerText || '');
+    const openingHours = textOf(root.querySelector('[data-item-id*="oh"], [aria-label*="Hours"], [aria-label*="Horário"], [data-item-id*="hours"]'));
+    const closedStatus = /permanently closed|permanentemente fechado/i.test(pageText) ? 'permanently_closed' :
+      /temporarily closed|temporariamente fechado/i.test(pageText) ? 'temporarily_closed' : 'unknown';
+    const rating = card.rating || (pageText.match(/\b([0-5][,.]\d)\b/) || [])[1] || '';
     return {
       ...card,
       ...context,
       name: name || card.name,
+      placeId: card.placeId || extractPlaceIdFromUrl(location.href),
       website,
       whatsappUrl: extractWhatsApp(root) || card.whatsappUrl || '',
       address: textOf(addressEl) || card.address || '',
       phone,
+      phones,
       category: textOf(categoryEl) || card.category || '',
+      categoryPath: (textOf(categoryEl) || card.category || '').split(/\s*[>›|/]\s*/).filter(Boolean),
+      emails: [...new Set(emailLinks.map((item) => item.toLowerCase()))],
+      socialProfiles: Object.fromEntries([...root.querySelectorAll('a[href]')].map((a) => {
+        try { const u = new URL(a.href); const h = u.hostname.replace(/^www\./, '').toLowerCase(); return ['instagram.com','facebook.com','linkedin.com'].some((d) => h === d || h.endsWith('.' + d)) ? [h.split('.').slice(-2, -1)[0], u.href] : null; } catch { return null; }
+      }).filter(Boolean)),
+      openingHours,
+      closedStatus,
+      ratingHistory: rating ? [{ rating: String(rating).replace(',', '.'), reviewCount: card.reviewCount || '', checkedAt: new Date().toISOString() }] : [],
+      sourceMap: { name: 'google_maps', category: 'google_maps', address: 'google_maps', phone: 'google_maps', rating: 'google_maps', website: 'google_maps' },
+      confidence: { name: 'high', category: 'high', address: addressEl ? 'high' : 'medium', phone: phone ? 'high' : 'unknown', website: websiteLink ? 'high' : 'medium' },
       emails: [...new Set(emailLinks.map((item) => item.toLowerCase()))],
       emailStatus: emailLinks.length ? 'found' : (website ? 'pending' : 'no_website')
     };
@@ -292,20 +343,58 @@
   function throwIfCaptureCancelled() {
     if (activeCaptureCancelled) throw new Error('Coleta cancelada.');
   }
+  async function waitWhilePaused() {
+    while (activeCapturePaused) {
+      throwIfCaptureCancelled();
+      reportProgress({ name: 'Coleta pausada pelo usuário' });
+      await sleep(250);
+    }
+    throwIfCaptureCancelled();
+  }
+  function detectMapsRestriction() {
+    const pathBlocked = /\/sorry\//i.test(location.pathname);
+    const challenge = !!document.querySelector('iframe[src*="recaptcha"], #captcha, form[action*="Captcha"], [id*="captcha"]');
+    const pageText = clean(document.body?.innerText || document.body?.textContent || '').slice(0, 12000);
+    const message = pageText.match(/unusual traffic|tráfego incomum|our systems have detected|automated queries|consultas automatizadas|não foi possível processar sua solicitação/i);
+    return pathBlocked || challenge || !!message;
+  }
   async function waitForResults(timeout = 30000) {
     const started = Date.now();
-    while (Date.now() - started < timeout) {
-      throwIfCaptureCancelled();
-      const feed = getFeed();
-      if (feed && collectCards().length) return feed;
-      await sleep(350);
+    let wakeObserver = null;
+    const observer = typeof MutationObserver !== 'undefined' ? new MutationObserver(() => wakeObserver?.()) : null;
+    try {
+      observer?.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+      while (Date.now() - started < timeout) {
+        throwIfCaptureCancelled();
+        await waitWhilePaused();
+        if (detectMapsRestriction()) {
+          throw new Error('O Google Maps apresentou uma verificação, CAPTCHA ou limitação de acesso. A coleta foi interrompida sem tentar contornar a proteção.');
+        }
+        const feed = getFeed();
+        if (feed && collectCards().length) return feed;
+        await new Promise((resolve) => {
+          let finished = false;
+          const finish = () => {
+            if (finished) return;
+            finished = true;
+            clearTimeout(timer);
+            if (wakeObserver === finish) wakeObserver = null;
+            resolve();
+          };
+          const timer = setTimeout(finish, 350);
+          wakeObserver = finish;
+        });
+      }
+    } finally {
+      observer?.disconnect();
+      wakeObserver = null;
     }
     const diagnostics = getResultDiagnostics();
     throw new Error(
       'Não reconheci cartões de empresas no Google Maps após 30 segundos. ' +
       'Diagnóstico: ' + diagnostics.businessLinks + ' link(s) de ficha, ' +
       diagnostics.visibleContainers + ' contêiner(es) visível(is). ' +
-      'Confirme que a pesquisa está aberta e que os resultados apareceram; depois tente novamente.'
+      'A página pode estar em uma tela de verificação ou a estrutura do Maps mudou.'
     );
   }
   async function waitForDetail(expectedName, expectedUrl = '', timeout = 6500) {
@@ -316,6 +405,7 @@
     try { targetPath = new URL(expectedUrl, location.href).pathname.replace(/\/$/, ''); } catch {}
     while (Date.now() - started < timeout) {
       throwIfCaptureCancelled();
+      await waitWhilePaused();
       const headingText = clean(detailRoot().querySelector('h1')?.textContent || '').toLowerCase();
       const headingMatches = expected.length > 1 &&
         (headingText === expected || headingText.includes(expected) || expected.includes(headingText));
@@ -344,6 +434,7 @@
     let fallbackUsed = false;
     while (Date.now() - started < timeout) {
       throwIfCaptureCancelled();
+      await waitWhilePaused();
       if (!isPlaceRoute() && getFeed()) return true;
       if (!fallbackUsed && Date.now() - started > 2200 &&
           (isPlaceRoute() || location.href !== previousUrl)) {
@@ -363,7 +454,7 @@
     return { items: [details], filteredOut: 0 };
   }
 
-  async function captureVisibleBusinesses(limit = 40, minRating = 0, context = {}) {
+  async function captureVisibleBusinesses(limit = 40, minRating = 0, context = {}, skipPlaceIds = [], skipMapsUrls = []) {
     if (!validMapsTab()) throw new Error('Abra uma pesquisa do Google Maps antes de iniciar a coleta.');
     await waitForResults();
     const parsedLimit = Number(limit);
@@ -375,18 +466,34 @@
     const threshold = Math.max(0, Math.min(Number(minRating) || 0, 5));
     const collected = [];
     const processed = new Set();
+    const knownPlaceIds = new Set(Array.isArray(skipPlaceIds) ? skipPlaceIds : []);
+    const knownMapsUrls = new Set(Array.isArray(skipMapsUrls) ? skipMapsUrls : []);
+    const skippedKnown = new Set();
     let filteredOut = 0, stagnantRounds = 0, scrollRounds = 0, sentCount = 0;
     let stopReason = '';
 
     while ((unlimited || collected.length < maxLeads) &&
            scrollRounds < (unlimited ? 2000 : 180) && stagnantRounds < 6) {
       throwIfCaptureCancelled();
+      await waitWhilePaused();
+      if (detectMapsRestriction()) {
+        stopReason = 'O Google Maps apresentou uma verificação ou limitação de acesso; a coleta foi interrompida.';
+        break;
+      }
       const feed = getFeed();
       if (!feed) { stopReason = 'A lista de resultados deixou de estar disponível.'; break; }
       const cards = collectCards();
+      for (const item of cards) {
+        const key = item.placeId || item.mapsUrl;
+        if (key && ((item.placeId && knownPlaceIds.has(item.placeId)) ||
+            (item.mapsUrl && knownMapsUrls.has(item.mapsUrl)))) skippedKnown.add(key);
+      }
       const basic = cards.find((item) => {
         const key = item.mapsUrl || item.name + '|' + item.address;
-        return key && !processed.has(key);
+        if (!key || processed.has(key)) return false;
+        if (item.placeId && knownPlaceIds.has(item.placeId)) return false;
+        if (item.mapsUrl && knownMapsUrls.has(item.mapsUrl)) return false;
+        return true;
       });
 
       if (basic) {
@@ -412,7 +519,15 @@
             throwIfCaptureCancelled();
             anchor.click();
             reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Aguardando ficha: ' + basic.name });
-            const opened = await waitForDetail(basic.name, basic.mapsUrl);
+            let opened = await waitForDetail(basic.name, basic.mapsUrl, 6500);
+            if (!opened && !isPlaceRoute() && location.href === previousUrl) {
+              reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Tentando abrir novamente: ' + basic.name });
+              const retryAnchor = [...getResultAnchors(getFeed() || document)].find((node) => absolute(node.href) === basic.mapsUrl && isRendered(node));
+              if (retryAnchor) {
+                retryAnchor.click();
+                opened = await waitForDetail(basic.name, basic.mapsUrl, 8500);
+              }
+            }
             if (opened) {
               reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Lendo contatos: ' + basic.name });
               details = extractDetail(basic, context);
@@ -470,13 +585,16 @@
       let foundMore = false;
       while (Date.now() - scrollStarted < 6000) {
         throwIfCaptureCancelled();
+        await waitWhilePaused();
         await sleep(300);
         const currentFeed = getFeed();
         if (!currentFeed) break;
         const currentCards = collectCards();
         const hasUnseen = currentCards.some((item) => {
           const nextKey = item.mapsUrl || item.name + '|' + item.address;
-          return nextKey && !processed.has(nextKey);
+          const alreadySaved = (item.placeId && knownPlaceIds.has(item.placeId)) ||
+            (item.mapsUrl && knownMapsUrls.has(item.mapsUrl));
+          return nextKey && !processed.has(nextKey) && !alreadySaved;
         });
         if (hasUnseen || currentFeed.scrollHeight > beforeHeight) { foundMore = true; break; }
       }
@@ -514,6 +632,7 @@
       sentCount,
       filteredOut,
       scanned: processed.size,
+      skippedExisting: skippedKnown.size,
       requested: unlimited ? 0 : maxLeads,
       remainingToTarget: unlimited ? null : Math.max(0, maxLeads - collected.length),
       scrollRounds,
@@ -544,7 +663,7 @@
 
       Promise.resolve().then(async () => {
         if (message.mode === 'open') return captureOpenBusiness(context);
-        return captureVisibleBusinesses(message.limit, message.minRating, context);
+        return captureVisibleBusinesses(message.limit, message.minRating, context, message.skipPlaceIds, message.skipMapsUrls);
       }).then(async (result) => {
         const items = Array.isArray(result.items) ? result.items : [];
         if (Number(result.sentCount || 0) < items.length) {
@@ -571,6 +690,7 @@
       }).finally(() => {
         if (activeCaptureTaskId === taskId) activeCaptureTaskId = null;
         activeCaptureCancelled = false;
+        activeCapturePaused = false;
         clearInterval(captureHeartbeatTimer);
         captureHeartbeatTimer = null;
       });
@@ -578,9 +698,30 @@
       return false;
     }
 
+    if (message?.type === 'PROSPECTRA_CAPTURE_PAUSE' && message.taskId === activeCaptureTaskId) {
+      activeCapturePaused = true;
+      sendResponse({ ok: true, paused: true });
+      return false;
+    }
+    if (message?.type === 'PROSPECTRA_CAPTURE_RESUME' && message.taskId === activeCaptureTaskId) {
+      activeCapturePaused = false;
+      sendResponse({ ok: true, paused: false });
+      return false;
+    }
+    if (message?.type === 'PROSPECTRA_DIAGNOSTICS') {
+      const diagnostics = getResultDiagnostics();
+      sendResponse({
+        ok: true, at: new Date().toISOString(), url: location.href,
+        title: document.title, readyState: document.readyState,
+        isMaps: validMapsTab(), isBlocked: detectMapsRestriction(),
+        diagnostics, userAgent: navigator.userAgent
+      });
+      return false;
+    }
     if (message?.type === 'PROSPECTRA_CAPTURE_CANCEL' &&
         message.taskId === activeCaptureTaskId) {
       activeCaptureCancelled = true;
+      activeCapturePaused = false;
       sendResponse({ ok: true });
       return false;
     }

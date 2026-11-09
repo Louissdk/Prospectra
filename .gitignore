@@ -1,5 +1,9 @@
+node_modules/
 .DS_Store
 Thumbs.db
-*.crx
-*.pem
 *.log
+.env
+.env.*
+!.env.example
+coverage/
+dist/
