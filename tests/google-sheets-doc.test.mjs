@@ -9,7 +9,7 @@ test('Google Sheets template exports exact coordinates and protects against form
   assert.match(docs,/lead\.latitude \?\? ''/);
   assert.match(docs,/lead\.longitude \?\? ''/);
   assert.match(docs,/row\.map\(safeCell\)/);
-  assert.match(docs,/\^\[\\s\]\*\[=\+\\-@\]/);
+  assert.ok(docs.includes(String.raw`return /^[\s]*[=+\-@]/.test(value)`));
 });
 
 test('Apps Script expands narrow sheets and neutralizes formula-like strings', () => {
