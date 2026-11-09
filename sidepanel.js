@@ -7,7 +7,8 @@ import {
   isDoNotContact, normalizeCompanyName, normalizeLeadRecord, qualityScore, renderTemplate, identityKeyForLead
 } from './crm-utils.js';
 import { loadAppState, saveAppState, createBackup, validateBackup, loadCaptureCheckpoint } from './db.js';
-import { normalizeSupabaseProjectUrl, parsePostgrestTotal, buildRangeHeader, isGoogleMapsUrl } from './cloud-utils.js';
+import { normalizeSupabaseProjectUrl, isGoogleMapsUrl } from './cloud-utils.js';
+import { readSupabaseLeadRows, upsertSupabaseLeadRows } from './supabase-sync-client.js';
 import { enrichmentPermissionOrigins } from './permission-utils.js';
 import { classifyQueueOutcome, summarizeQueueOutcomes } from './queue-utils.js';
 import { MAX_DELETION_TOMBSTONES, normalizeDeletionTombstone, createDeletionTombstone, mergeDeletionTombstones, applyDeletionTombstones, pruneSupersededTombstones, buildSupabaseSyncRows } from './sync-utils.js';
@@ -1091,44 +1092,14 @@ async function syncSupabase() {
     const headers=supabaseHeaders(anon,token);
     setStatus('Lendo registros e exclusões da nuvem…');
 
-    const remote=[];
-    const remotePageSize=1000;
-    let remoteTotal=null;
-    for (let offset=0;offset<=MAX_CLOUD_RECORDS;offset+=remotePageSize) {
-      const response=await fetch(url+'/rest/v1/prospectra_leads?select=id,identity_key,payload,updated_at,deleted_at',{
-        headers:{
-          ...headers,
-          'Range-Unit':'items',
-          'Range':buildRangeHeader(offset,remotePageSize),
-          'Prefer':'count=exact'
-        }
-      });
-      if (!response.ok) {
-        const detail=await response.text().catch(()=>'');
-        if (/deleted_at/i.test(detail)) {
-          throw new Error('A tabela Supabase ainda não possui a coluna deleted_at. Execute novamente docs/supabase/schema.sql para aplicar a migração.');
-        }
-        throw new Error('Falha ao ler a tabela. Verifique o SQL e as políticas RLS. '+detail.slice(0,160));
-      }
-      const total=parsePostgrestTotal(response.headers.get('content-range'));
-      if (total!==null) {
-        remoteTotal=total;
-        if (total>MAX_CLOUD_RECORDS) {
-          throw new Error('A nuvem contém '+total.toLocaleString('pt-BR')+' registros, acima do limite combinado de '+MAX_CLOUD_RECORDS.toLocaleString('pt-BR')+' leads e exclusões. A sincronização foi cancelada sem importar dados parciais.');
-        }
-      }
-      const batch=await response.json();
-      if (!Array.isArray(batch)) throw new Error('Resposta inválida ao consultar os registros na nuvem.');
-      if (offset>=MAX_CLOUD_RECORDS && batch.length) {
-        throw new Error('A nuvem ultrapassa o limite de '+MAX_CLOUD_RECORDS.toLocaleString('pt-BR')+' registros. A sincronização foi cancelada.');
-      }
-      remote.push(...batch);
-      setProgress(remote.length,remoteTotal??MAX_CLOUD_RECORDS,'Lendo registros remotos: '+remote.length.toLocaleString('pt-BR'));
-      if (batch.length<remotePageSize || (remoteTotal!==null && remote.length>=remoteTotal)) break;
-    }
-    if (remoteTotal!==null && remote.length!==remoteTotal) {
-      throw new Error('Leitura incompleta da nuvem: '+remote.length+' de '+remoteTotal+' registros recebidos.');
-    }
+    setStatus('Lendo registros e exclusões da nuvem…');
+    const { rows: remote } = await readSupabaseLeadRows({
+      projectUrl:url,
+      headers,
+      maxRecords:MAX_CLOUD_RECORDS,
+      pageSize:1000,
+      onProgress:(received,total)=>setProgress(received,total,'Lendo registros remotos: '+received.toLocaleString('pt-BR'))
+    });
 
     const remoteTombstones=remote
       .filter((row)=>row.deleted_at)
@@ -1156,19 +1127,13 @@ async function syncSupabase() {
     await persist();
 
     const body=buildSupabaseSyncRows(leads,state.deletedLeadKeys,userId);
-    for (let offset=0;offset<body.length;offset+=200) {
-      const batch=body.slice(offset,offset+200);
-      const response=await fetch(url+'/rest/v1/prospectra_leads?on_conflict=user_id,identity_key',{
-        method:'POST',
-        headers:{...headers,Prefer:'resolution=merge-duplicates,return=minimal'},
-        body:JSON.stringify(batch)
-      });
-      if (!response.ok) {
-        const detail=await response.text().catch(()=>'');
-        throw new Error('Falha ao enviar lote '+(Math.floor(offset/200)+1)+'. '+detail.slice(0,180)+' Verifique o schema e as políticas RLS.');
-      }
-      setProgress(Math.min(offset+batch.length,body.length),body.length,'Sincronizando leads e exclusões');
-    }
+    await upsertSupabaseLeadRows({
+      projectUrl:url,
+      headers,
+      rows:body,
+      batchSize:200,
+      onProgress:(sent,total)=>setProgress(sent,total,'Sincronizando leads e exclusões')
+    });
 
     state.settings.supabaseLastSync=new Date().toISOString();
     await persist();

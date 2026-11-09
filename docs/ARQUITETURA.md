@@ -11,6 +11,7 @@ O Prospectra é uma extensão Chrome Manifest V3 dividida em quatro partes princ
 | sidepanel.js | Interface, CRM, fila de pesquisas, relatórios e integrações |
 | db.js | Inicialização, migração, persistência IndexedDB, backup e checkpoints |
 | sync-utils.js | Tombstones de exclusão, reconciliação de conflitos e linhas Supabase |
+| supabase-sync-client.js | Paginação PostgREST com contagem exata e upsert em lotes com verificação de falhas |
 | geo-utils.js | Validação de coordenadas, visualização proporcional e exportação KML/GeoJSON |
 | checkpoint-utils.js | Normalização e limites dos dados de retomada de coleta |
 | permission-utils.js | Origens públicas específicas solicitadas para enriquecimento, incluindo DNS/MX |
