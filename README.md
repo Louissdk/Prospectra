@@ -74,7 +74,7 @@ A versão 2.0.0 expande o produto para além da captura: inclui banco local Inde
 ### Integrações opcionais
 
 - **Google Sheets:** envio para um Web App próprio do Google Apps Script.
-- **Supabase:** autenticação e sincronização de leads entre dispositivos usando RLS.
+- **Supabase:** autenticação e sincronização de leads entre dispositivos usando RLS, validação estrita da URL do projeto e paginação com contagem exata.
 - Não é necessário configurar essas integrações para usar a captura ou o CRM local.
 
 > **Importante:** o Prospectra lê a interface pública carregada no navegador. Ele não usa uma API oficial de dados do Google Maps, não garante que todos os resultados sejam apresentados e não contorna CAPTCHA, login, bloqueios, paywalls ou limites do serviço.

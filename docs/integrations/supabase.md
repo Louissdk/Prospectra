@@ -40,7 +40,7 @@ A senha é enviada à API Auth para autenticação e não é salva pelo Prospect
 
 ## 4. Política de sincronização
 
-- A sincronização baixa registros visíveis ao usuário autenticado pela RLS.
+- A sincronização valida a URL HTTPS do projeto, baixa registros visíveis ao usuário autenticado pela RLS em páginas de 1.000 linhas e confere a contagem exata, com limite de 10.000 registros por sincronização.
 - O Prospectra mescla os registros locais e remotos por identidade comercial e mantém o ID local do registro consolidado.
 - A leitura remota é paginada em blocos de 1.000 linhas e limitada a 10.000 leads por sincronização nesta versão.
 - O resultado local é enviado em lotes de até 200 registros.

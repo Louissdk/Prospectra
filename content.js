@@ -59,7 +59,8 @@
   const absolute = (value) => {
     try { return new URL(value, location.href).href; } catch { return ''; };
   };
-  const validMapsTab = () => /(^|\.)google\.[^/]+$/.test(location.hostname) && /\/maps/.test(location.pathname);
+  const isGoogleDomain = (hostname = '') => /(^|\.)google\.[a-z]{2,3}(?:\.[a-z]{2})?$/i.test(String(hostname || '').toLowerCase().replace(/\.$/, ''));
+  const validMapsTab = () => isGoogleDomain(location.hostname) && /^\/maps(?:\/|$)/i.test(location.pathname);
 
   function isRendered(element) {
     if (!element?.isConnected || !element.getClientRects?.().length) return false;
@@ -82,7 +83,7 @@
     if (!anchor?.href) return false;
     try {
       const url = new URL(anchor.href, location.href);
-      if (!/(^|\.)google\./i.test(url.hostname)) return false;
+      if (!isGoogleDomain(url.hostname)) return false;
       const path = url.pathname.toLowerCase();
       return path.includes('/maps/place/') ||
         (path.endsWith('/maps') && url.searchParams.has('cid'));

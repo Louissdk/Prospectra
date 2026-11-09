@@ -7,6 +7,7 @@ import {
   isDoNotContact, normalizeCompanyName, normalizeLeadRecord, qualityScore, renderTemplate, identityKeyForLead
 } from './crm-utils.js';
 import { loadAppState, saveAppState, createBackup, validateBackup } from './db.js';
+import { normalizeSupabaseProjectUrl, parsePostgrestTotal, buildRangeHeader, isGoogleMapsUrl } from './cloud-utils.js';
 
 const $ = (selector) => document.querySelector(selector);
 const PAGE_SIZE = 50;
@@ -570,7 +571,7 @@ async function enrichExistingLeads() {
 
 async function getActiveMapsTab() {
   const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
-  if (!tab?.id || !/^https?:/.test(tab.url||'') || !/google\.[^/]+\/maps/i.test(tab.url||'')) throw new Error('Abra o Google Maps e aguarde os resultados antes de iniciar a coleta.');
+  if (!tab?.id || !isGoogleMapsUrl(tab.url||'')) throw new Error('Abra uma página oficial do Google Maps e aguarde os resultados antes de iniciar a coleta.');
   await chrome.scripting.executeScript({target:{tabId:tab.id},files:['content.js']});
   return tab;
 }
@@ -650,7 +651,7 @@ async function searchMaps() {
   const url='https://www.google.com/maps/search/'+encodeURIComponent(term+' '+city);
   try {
     const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
-    if (tab?.id && /google\.[^/]+\/maps/i.test(tab.url||'')) await chrome.tabs.update(tab.id,{url});
+    if (tab?.id && isGoogleMapsUrl(tab.url||'')) await chrome.tabs.update(tab.id,{url});
     else await chrome.tabs.create({url,active:true});
     setStatus('Pesquisa aberta no Google Maps. Aguarde os resultados aparecerem.','success');
   } catch(error) {setStatus(error?.message||'Não foi possível abrir o Maps.','error');}
@@ -663,7 +664,7 @@ async function waitForTabReady(tabId,expectedUrl='',timeout=35000) {
       const expected = new URL(expectedUrl);
       const actualPath = decodeURIComponent(actual.pathname).replace(/\/+$/,'').toLowerCase();
       const expectedPath = decodeURIComponent(expected.pathname).replace(/\/+$/,'').toLowerCase();
-      return /(^|\.)google\./i.test(actual.hostname) &&
+      return isGoogleMapsUrl(actual.href) &&
         actualPath.startsWith('/maps/search/') &&
         (actualPath === expectedPath || actualPath.startsWith(expectedPath));
     } catch { return false; }
@@ -721,7 +722,7 @@ async function runQueue() {
   queueRunning=true;queueStopRequested=false;renderResearch();
   try {
     const [active]=await chrome.tabs.query({active:true,currentWindow:true});
-    tab=active?.id && /google\.[^/]+\/maps/i.test(active.url||'') ? active : await chrome.tabs.create({url:'https://www.google.com/maps',active:true});
+    tab=active?.id && isGoogleMapsUrl(active.url||'') ? active : await chrome.tabs.create({url:'https://www.google.com/maps',active:true});
     for (const item of pending) {
       if (queueStopRequested) break;
       let currentQueueItem=state.queue.find((row)=>row.id===item.id);
@@ -845,8 +846,9 @@ async function syncGoogleSheets() {
   }
 }
 function normalizedSupabaseUrl() {
-  const url=String($('#supabaseUrl').value||state.settings.supabaseUrl||'').trim().replace(/\/+$/,'');
-  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url)) throw new Error('Informe a URL HTTPS do seu projeto *.supabase.co.');
+  const url=normalizeSupabaseProjectUrl($('#supabaseUrl').value||state.settings.supabaseUrl||'');
+  $('#supabaseUrl').value=url;
+  state.settings.supabaseUrl=url;
   return url;
 }
 function supabaseHeaders(anon,token) {
@@ -911,51 +913,98 @@ async function getSupabaseSession() {
 }
 async function syncSupabase() {
   try {
-    state.settings.supabaseUrl=$('#supabaseUrl').value.trim().replace(/\/+$/,'');
-    state.settings.supabaseAnonKey=$('#supabaseAnonKey').value.trim();
-    if (!state.settings.supabaseUrl || !state.settings.supabaseAnonKey) throw new Error('Configure Project URL e chave anon/public.');
-    const granted=await chrome.permissions.request({origins:[state.settings.supabaseUrl+'/*']});
+    const url=normalizedSupabaseUrl();
+    const anon=$('#supabaseAnonKey').value.trim()||state.settings.supabaseAnonKey||'';
+    if (!anon) throw new Error('Informe a chave anon/public do Supabase.');
+    state.settings.supabaseUrl=url;
+    state.settings.supabaseAnonKey=anon;
+    const granted=await chrome.permissions.request({origins:[url+'/*']});
     if (!granted) throw new Error('Permissão para acessar o projeto Supabase não concedida.');
+
     const session=await getSupabaseSession();
-    const url=state.settings.supabaseUrl,anon=state.settings.supabaseAnonKey,token=session.access_token;
+    const token=session.access_token;
+    const userId=session.user?.id||decodeJwtPayload(token).sub;
+    if (!userId) throw new Error('Não foi possível identificar o usuário autenticado no Supabase.');
     const headers=supabaseHeaders(anon,token);
     setStatus('Lendo registros da nuvem…');
+
     const remote=[];
     const remotePageSize=1000;
-    for (let offset=0;offset<10000;offset+=remotePageSize) {
-      const remoteResponse=await fetch(url+'/rest/v1/prospectra_leads?select=id,identity_key,payload,updated_at',{
-        headers:{...headers,'Range-Unit':'items','Range':offset+'-'+(offset+remotePageSize-1)}
+    let remoteTotal=null;
+    for (let offset=0;offset<=MAX_LEADS;offset+=remotePageSize) {
+      const response=await fetch(url+'/rest/v1/prospectra_leads?select=id,identity_key,payload,updated_at',{
+        headers:{
+          ...headers,
+          'Range-Unit':'items',
+          'Range':buildRangeHeader(offset,remotePageSize),
+          'Prefer':'count=exact'
+        }
       });
-      if (!remoteResponse.ok) throw new Error('Falha ao ler a tabela. Verifique o SQL e as políticas RLS.');
-      const batch=await remoteResponse.json();
+      if (!response.ok) throw new Error('Falha ao ler a tabela. Verifique o SQL e as políticas RLS.');
+      const total=parsePostgrestTotal(response.headers.get('content-range'));
+      if (total!==null) {
+        remoteTotal=total;
+        if (total>MAX_LEADS) {
+          throw new Error('A nuvem contém '+total.toLocaleString('pt-BR')+' leads, acima do limite local de '+MAX_LEADS.toLocaleString('pt-BR')+'. A sincronização foi cancelada sem importar uma base incompleta.');
+        }
+      }
+      const batch=await response.json();
       if (!Array.isArray(batch)) throw new Error('Resposta inválida ao consultar os leads na nuvem.');
+      if (offset>=MAX_LEADS && batch.length) {
+        throw new Error('A nuvem contém mais de '+MAX_LEADS.toLocaleString('pt-BR')+' leads. A sincronização foi cancelada para não apresentar dados parciais como completos.');
+      }
       remote.push(...batch);
-      setProgress(remote.length,10000,'Lendo registros remotos: '+remote.length);
-      if (batch.length<remotePageSize) break;
+      setProgress(remote.length,remoteTotal??MAX_LEADS,'Lendo registros remotos: '+remote.length.toLocaleString('pt-BR'));
+      if (batch.length<remotePageSize || (remoteTotal!==null && remote.length>=remoteTotal)) break;
     }
-    if (remote.length>=10000) setStatus('A base em nuvem atingiu o limite de leitura de 10.000 registros desta versão.','warning');
-    const userId=session.user?.id||decodeJwtPayload(token).sub;
-    mergeIncoming(remote.map((row)=>({...row.payload,id:row.id,identityKey:row.identity_key||row.payload?.identityKey,updatedAt:row.updated_at||row.payload?.updatedAt})));
+    if (remoteTotal!==null && remote.length!==remoteTotal) {
+      throw new Error('Leitura incompleta da nuvem: '+remote.length+' de '+remoteTotal+' registros recebidos.');
+    }
+
+    const remoteLeads=remote.map((row)=>normalizeCurrentLead({
+      ...(row.payload||{}),
+      id:row.id,
+      identityKey:row.identity_key||row.payload?.identityKey,
+      updatedAt:row.updated_at||row.payload?.updatedAt
+    }));
+    const merged=mergeLeadRecords(leads,remoteLeads,MAX_LEADS+1);
+    if (merged.length>MAX_LEADS) {
+      throw new Error('A mesclagem ultrapassaria o limite local de '+MAX_LEADS.toLocaleString('pt-BR')+' leads. Exporte ou organize a base antes de sincronizar.');
+    }
+    leads=merged;
+    state.leads=leads;
     await persist();
-    const body=leads.map((lead)=>({id:lead.id,identity_key:lead.identityKey||identityKeyForLead(lead),user_id:userId,payload:lead,updated_at:lead.updatedAt||new Date().toISOString()}));
+
+    const body=leads.map((lead)=>({
+      id:lead.id,
+      identity_key:lead.identityKey||identityKeyForLead(lead),
+      user_id:userId,
+      payload:lead,
+      updated_at:lead.updatedAt||new Date().toISOString()
+    }));
     for (let offset=0;offset<body.length;offset+=200) {
       const batch=body.slice(offset,offset+200);
       const response=await fetch(url+'/rest/v1/prospectra_leads?on_conflict=user_id,identity_key',{
-        method:'POST',headers:{...headers,Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(batch)
+        method:'POST',
+        headers:{...headers,Prefer:'resolution=merge-duplicates,return=minimal'},
+        body:JSON.stringify(batch)
       });
       if (!response.ok) throw new Error('Falha ao enviar lote '+(Math.floor(offset/200)+1)+'. Verifique a tabela e as políticas RLS.');
       setProgress(Math.min(offset+batch.length,body.length),body.length,'Sincronizando nuvem');
     }
+
     state.settings.supabaseLastSync=new Date().toISOString();
     await persist();
     $('#cloudStatus').textContent='Última sincronização: '+new Date(state.settings.supabaseLastSync).toLocaleString('pt-BR')+'. '+leads.length+' leads.';
-    setStatus('Sincronização concluída. A regra de conflito usa a mesclagem local e não propaga exclusões.','success');
-  } catch(error) {setStatus('Supabase: '+(error?.message||'falha ao sincronizar'),'error');}
+    setStatus('Sincronização concluída. A leitura remota foi completa e a regra de conflito mescla registros; exclusões não são propagadas.','success');
+  } catch(error) {
+    setStatus('Supabase: '+(error?.message||'falha ao sincronizar'),'error');
+  }
 }
 async function updateTabStatus() {
   try {
     const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
-    const maps=/google\.[^/]+\/maps/i.test(tab?.url||'');
+    const maps=isGoogleMapsUrl(tab?.url||'');
     $('#tabStatus')?.replaceChildren(document.createTextNode(maps?'Google Maps disponível nesta aba':'Abra uma pesquisa do Google Maps para capturar'));
   } catch {}
 }
