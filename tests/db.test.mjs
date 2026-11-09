@@ -35,3 +35,20 @@ test('backup validator accepts a Prospectra backup and rejects arbitrary JSON', 
   assert.equal(withSecrets.settings.supabaseAnonKey,'');
   assert.equal(withSecrets.settings.supabaseSession,null);
 });
+
+test('backup preserves deletion tombstones without storing integration secrets', async () => {
+  const input = {
+    leads: [],
+    deletedLeadKeys: [{id:'gone-1',identityKey:'place:ChIJ-1',aliases:['place:ChIJ-1'],deletedAt:'2026-11-09T10:00:00.000Z'}],
+    settings: {sheetsToken:'secret',supabaseSession:{access_token:'private'}}
+  };
+  const backup = JSON.parse(await createBackup(input));
+  assert.equal(backup.counts.deletedLeadKeys,1);
+  assert.equal(backup.data.deletedLeadKeys[0].identityKey,'place:ChIJ-1');
+  const restored = validateBackup(backup);
+  assert.equal(restored.deletedLeadKeys.length,1);
+});
+test('backup validator rejects malformed or excessive deletion history', () => {
+  assert.throws(()=>validateBackup({app:'Prospectra',data:{leads:[],deletedLeadKeys:{}}}),/histórico de exclusões/);
+  assert.throws(()=>validateBackup({app:'Prospectra',data:{leads:[],deletedLeadKeys:Array.from({length:10001},(_,i)=>({identityKey:String(i),deletedAt:'2026-11-09T10:00:00.000Z'}))}}),/10.000 exclusões/);
+});

@@ -5,7 +5,7 @@ const STORE = 'records';
 const APP_STATE_KEY = 'app_state_v2';
 const LEGACY_KEY = 'prospectra_leads_v1';
 const DEFAULT_STATE = {
-  schemaVersion: 2, leads: [], activities: [], searches: [], queue: [],
+  schemaVersion: 2, leads: [], deletedLeadKeys: [], activities: [], searches: [], queue: [],
   settings: { owner: '', weights: {}, messageTemplate: '', sheetsUrl: '', sheetsToken: '', supabaseUrl: '', supabaseAnonKey: '', supabaseSession: null },
   doNotContact: [], diagnostics: [], updatedAt: new Date().toISOString()
 };
@@ -108,7 +108,7 @@ export async function createBackup(state) {
   safeState.settings.supabaseSession = null;
   const payload = {
     app: 'Prospectra', schemaVersion: 2, exportedAt: new Date().toISOString(),
-    counts: { leads: safeState.leads?.length || 0, activities: safeState.activities?.length || 0, searches: safeState.searches?.length || 0 },
+    counts: { leads: safeState.leads?.length || 0, deletedLeadKeys: safeState.deletedLeadKeys?.length || 0, activities: safeState.activities?.length || 0, searches: safeState.searches?.length || 0 },
     data: safeState
   };
   return JSON.stringify(payload, null, 2);
@@ -118,6 +118,9 @@ export function validateBackup(value) {
     throw new Error('Arquivo inválido. Selecione um backup JSON exportado pelo Prospectra.');
   }
   if (value.data.leads.length > 100000) throw new Error('O backup excede o limite de 100.000 leads.');
+  if (value.data.deletedLeadKeys !== undefined && !Array.isArray(value.data.deletedLeadKeys)) throw new Error('O histórico de exclusões do backup é inválido.');
+  if ((value.data.deletedLeadKeys || []).length > 10000) throw new Error('O backup excede o limite de 10.000 exclusões sincronizáveis.');
+
   const restored = { ...structuredClone(DEFAULT_STATE), ...value.data, schemaVersion: 2 };
   restored.settings = { ...structuredClone(DEFAULT_STATE.settings), ...(restored.settings || {}) };
   restored.settings.sheetsToken = '';
