@@ -55,6 +55,21 @@
     throw new Error('Não foi possível confirmar o salvamento do lote: ' + (lastError?.message || 'falha de comunicação'));
   }
 
+  async function persistCaptureCheckpoint(checkpoint) {
+    if (!activeCaptureTaskId) return false;
+    try {
+      const response = await sendRuntimeMessage({
+        type: 'PROSPECTRA_SAVE_CHECKPOINT',
+        taskId: activeCaptureTaskId,
+        checkpoint: { ...checkpoint, taskId: activeCaptureTaskId }
+      }, 7000);
+      return !!response?.ok;
+    } catch (error) {
+      console.warn('[Prospectra] Checkpoint não confirmado:', error);
+      return false;
+    }
+  }
+
   const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
   const absolute = (value) => {
     try { return new URL(value, location.href).href; } catch { return ''; };
@@ -503,6 +518,12 @@
         const rating = Number(String(basic.rating || '').replace(',', '.'));
         if (threshold > 0 && (!basic.rating || !Number.isFinite(rating) || rating < threshold)) {
           filteredOut += 1;
+          await persistCaptureCheckpoint({
+            status: 'running', searchTerm: context.searchTerm || '', city: context.city || '',
+            queueItemId: context.queueItemId || '', requested: unlimited ? 0 : maxLeads, minRating: threshold,
+            lastPlaceName: basic.name, lastPlaceId: basic.placeId || '', lastMapsUrl: basic.mapsUrl || '',
+            collected: collected.length, filteredOut, scanned: processed.size
+          });
           reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Descartado pela nota: ' + basic.name });
           continue;
         }
@@ -540,19 +561,53 @@
             if (!returned) {
               details.captureNote = [details.captureNote, 'O Google Maps não confirmou o retorno à lista. A coleta foi interrompida para evitar abrir fichas sobrepostas.'].filter(Boolean).join(' ');
               collected.push(details);
-              if (collected.length - sentCount >= 2) {
+              if (collected.length > sentCount) {
                 await sendCaptureBatch(collected.slice(sentCount));
                 sentCount = collected.length;
               }
+              await persistCaptureCheckpoint({
+                status: 'interrupted', searchTerm: context.searchTerm || '', city: context.city || '',
+                queueItemId: context.queueItemId || '', requested: unlimited ? 0 : maxLeads, minRating: threshold,
+                lastPlaceName: basic.name, lastPlaceId: basic.placeId || '', lastMapsUrl: basic.mapsUrl || '',
+                collected: collected.length, filteredOut, scanned: processed.size,
+                stopReason: 'Não foi possível retornar à lista após: ' + basic.name
+              });
               stopReason = 'Não foi possível retornar à lista após: ' + basic.name;
               break;
             }
           } catch (error) {
             details.captureNote = [details.captureNote, error?.message || 'Falha durante a abertura ou leitura da ficha.'].filter(Boolean).join(' ');
+            if (activeCaptureCancelled) {
+              collected.push(details);
+              if (collected.length > sentCount) {
+                await sendCaptureBatch(collected.slice(sentCount));
+                sentCount = collected.length;
+              }
+              await persistCaptureCheckpoint({
+                status: 'interrupted', searchTerm: context.searchTerm || '', city: context.city || '',
+                queueItemId: context.queueItemId || '', requested: unlimited ? 0 : maxLeads, minRating: threshold,
+                lastPlaceName: basic.name, lastPlaceId: basic.placeId || '', lastMapsUrl: basic.mapsUrl || '',
+                collected: collected.length, filteredOut, scanned: processed.size,
+                stopReason: 'Coleta cancelada durante a leitura de uma ficha.'
+              });
+              stopReason = 'Coleta cancelada pelo usuário. O último cartão iniciado foi salvo com os dados disponíveis.';
+              break;
+            }
             if (isPlaceRoute() || location.href !== previousUrl) {
               const returned = await returnToResults(previousUrl);
               if (!returned) {
                 collected.push(details);
+                if (collected.length > sentCount) {
+                  await sendCaptureBatch(collected.slice(sentCount));
+                  sentCount = collected.length;
+                }
+                await persistCaptureCheckpoint({
+                  status: 'interrupted', searchTerm: context.searchTerm || '', city: context.city || '',
+                  queueItemId: context.queueItemId || '', requested: unlimited ? 0 : maxLeads, minRating: threshold,
+                  lastPlaceName: basic.name, lastPlaceId: basic.placeId || '', lastMapsUrl: basic.mapsUrl || '',
+                  collected: collected.length, filteredOut, scanned: processed.size,
+                  stopReason: 'Falha ao retornar aos resultados depois de: ' + basic.name
+                });
                 stopReason = 'Falha ao retornar aos resultados depois de: ' + basic.name;
                 break;
               }
@@ -563,12 +618,18 @@
         }
 
         collected.push(details);
-        reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Lead capturado: ' + basic.name });
-        if (collected.length - sentCount >= 2) {
-          reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Salvando lote de leads' });
+        reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Salvando lead: ' + basic.name });
+        if (collected.length > sentCount) {
           await sendCaptureBatch(collected.slice(sentCount));
           sentCount = collected.length;
         }
+        await persistCaptureCheckpoint({
+          status: 'running', searchTerm: context.searchTerm || '', city: context.city || '',
+          queueItemId: context.queueItemId || '', requested: unlimited ? 0 : maxLeads, minRating: threshold,
+          lastPlaceName: basic.name, lastPlaceId: basic.placeId || '', lastMapsUrl: basic.mapsUrl || '',
+          collected: collected.length, filteredOut, scanned: processed.size
+        });
+        reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Lead salvo: ' + basic.name });
         continue;
       }
 
@@ -623,6 +684,17 @@
       await sendCaptureBatch(collected.slice(sentCount));
       sentCount = collected.length;
     }
+    const interrupted = /cancelad|verificação|limitação|não foi possível retornar|falha ao retornar|desapareceu durante/i.test(stopReason);
+    const checkpointStatus = interrupted ? 'interrupted' : ((!unlimited && collected.length < maxLeads) ? 'partial' : 'completed');
+    await persistCaptureCheckpoint({
+      status: checkpointStatus,
+      searchTerm: context.searchTerm || '', city: context.city || '',
+      queueItemId: context.queueItemId || '', requested: unlimited ? 0 : maxLeads, minRating: threshold,
+      lastPlaceName: collected.at(-1)?.name || '',
+      lastPlaceId: collected.at(-1)?.placeId || '',
+      lastMapsUrl: collected.at(-1)?.mapsUrl || '',
+      collected: collected.length, filteredOut, scanned: processed.size, stopReason
+    });
     reportProgress({
       done: collected.length + filteredOut,
       total: progressTotal,
@@ -655,7 +727,8 @@
       startCaptureHeartbeat(taskId);
       const context = {
         searchTerm: clean(message.searchTerm || ''),
-        city: clean(message.city || '')
+        city: clean(message.city || ''),
+        queueItemId: clean(message.queueItemId || '')
       };
 
       // Resposta imediata: não manter um canal aberto enquanto o Maps navega
@@ -663,6 +736,15 @@
       sendResponse({ ok: true, started: true, taskId });
 
       Promise.resolve().then(async () => {
+        await persistCaptureCheckpoint({
+          status: 'running',
+          searchTerm: context.searchTerm,
+          city: context.city,
+          queueItemId: context.queueItemId,
+          requested: message.mode === 'open' ? 1 : (Number(message.limit) || 0),
+          minRating: Number(message.minRating) || 0,
+          collected: 0, filteredOut: 0, scanned: 0
+        });
         if (message.mode === 'open') return captureOpenBusiness(context);
         return captureVisibleBusinesses(message.limit, message.minRating, context, message.skipPlaceIds, message.skipMapsUrls);
       }).then(async (result) => {
@@ -672,6 +754,16 @@
             await sendCaptureBatch(items.slice(offset, offset + 3));
           }
         }
+        if (message.mode === 'open') {
+          const item = items[0] || {};
+          await persistCaptureCheckpoint({
+            status: 'completed', searchTerm: context.searchTerm, city: context.city,
+            queueItemId: context.queueItemId, requested: 1, minRating: Number(message.minRating) || 0,
+            collected: items.length, scanned: items.length,
+            lastPlaceName: item.name || '', lastPlaceId: item.placeId || '', lastMapsUrl: item.mapsUrl || '',
+            stopReason: 'Ficha individual capturada.'
+          });
+        }
         const { items: _items, sentCount: _sentCount, ...summary } = result;
         await chrome.runtime.sendMessage({
           type: 'PROSPECTRA_CAPTURE_COMPLETE',
@@ -680,6 +772,15 @@
           ...summary
         });
       }).catch(async (error) => {
+        await persistCaptureCheckpoint({
+          status: 'interrupted',
+          searchTerm: context.searchTerm,
+          city: context.city,
+          queueItemId: context.queueItemId,
+          requested: message.mode === 'open' ? 1 : (Number(message.limit) || 0),
+          minRating: Number(message.minRating) || 0,
+          stopReason: error?.message || 'Coleta interrompida.'
+        });
         try {
           await chrome.runtime.sendMessage({
             type: 'PROSPECTRA_CAPTURE_COMPLETE',

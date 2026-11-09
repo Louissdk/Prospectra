@@ -83,6 +83,9 @@ test('simulates opening a Maps card, reading its detail and returning to results
   assert.equal(batches.length,1);
   assert.equal(batches[0].items[0].name,'Clínica Exemplo');
   assert.ok(batches[0].items[0].placeId);
+  const checkpoint=sent.find((message)=>message.type==='PROSPECTRA_SAVE_CHECKPOINT' && message.checkpoint?.status==='completed');
+  assert.ok(checkpoint,'successful capture should persist a completed checkpoint');
+  assert.equal(checkpoint.checkpoint.lastPlaceName,'Clínica Exemplo');
 });
 
 test('stops safely when Maps presents a traffic verification screen', async () => {
@@ -93,4 +96,5 @@ test('stops safely when Maps presents a traffic verification screen', async () =
   assert.equal(result.ok,false);
   assert.match(result.error,/verificação|limitação/i);
   assert.equal(sent.some((message)=>message.type==='PROSPECTRA_CAPTURE_BATCH'),false);
+  assert.ok(sent.some((message)=>message.type==='PROSPECTRA_SAVE_CHECKPOINT' && message.checkpoint?.status==='interrupted'));
 });

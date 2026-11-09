@@ -108,3 +108,23 @@ export function summarizeCapture(stats = {}) {
   const remaining = requested > 0 ? Math.max(0, requested - collected) : null;
   return { requested, collected, filteredOut, scanned, remaining, partial: requested > 0 && collected < requested, reachedTarget: requested === 0 || collected >= requested, stopReason: String(stats.stopReason || '').trim() };
 }
+
+
+export function isResumableCheckpoint(checkpoint) {
+  if (!checkpoint || typeof checkpoint !== 'object') return false;
+  return ['running','interrupted','partial'].includes(String(checkpoint.status || '')) &&
+    Boolean(String(checkpoint.searchTerm || '').trim()) &&
+    Boolean(String(checkpoint.city || '').trim());
+}
+
+export function captureResumeLabel(checkpoint) {
+  if (!checkpoint || typeof checkpoint !== 'object') return '';
+  const status = String(checkpoint.status || '');
+  const term = String(checkpoint.searchTerm || 'pesquisa');
+  const city = String(checkpoint.city || '');
+  const last = String(checkpoint.lastPlaceName || '');
+  const prefix = status === 'completed' ? 'Última pesquisa concluída' : 'Checkpoint recuperável';
+  const tail = last ? ' · último estabelecimento: ' + last : '';
+  return prefix + ': ' + term + (city ? ' · ' + city : '') + tail +
+    '. ' + (Number(checkpoint.collected) || 0) + ' lead(s) confirmados.';
+}

@@ -81,3 +81,12 @@ test('merges alias matches even when the Maps URL changed', () => {
   assert.equal(merged[0].website,'https://empresa.example');
   assert.ok(captureLeadAliases(merged[0]).some((key)=>key.startsWith('place:')));
 });
+
+
+test('marks only incomplete checkpoints with a saved query as resumable', async () => {
+  const { isResumableCheckpoint, captureResumeLabel } = await import('../capture-utils.js');
+  assert.equal(isResumableCheckpoint({status:'interrupted',searchTerm:'clínicas',city:'Guarulhos'}),true);
+  assert.equal(isResumableCheckpoint({status:'completed',searchTerm:'clínicas',city:'Guarulhos'}),false);
+  assert.equal(isResumableCheckpoint({status:'partial',searchTerm:'',city:'Guarulhos'}),false);
+  assert.match(captureResumeLabel({status:'interrupted',searchTerm:'clínicas',city:'Guarulhos',lastPlaceName:'Clínica X',collected:12}),/Clínica X/);
+});

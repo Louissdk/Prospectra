@@ -10,6 +10,7 @@
 - [ ] Confirmar que o workflow GitHub Actions ficou verde.
 - [ ] Instalar a pasta em um perfil Chrome limpo.
 - [ ] Testar migração de uma base de versão anterior.
+- [ ] Testar interrupção da coleta, persistência do checkpoint e retomada pela fila sem duplicar os leads salvos.
 - [ ] Testar coleta manual controlada no Maps.
 - [ ] Testar backup e restauração.
 - [ ] Testar Google Sheets e Supabase em ambientes próprios de teste.

@@ -10,7 +10,7 @@ Todas as alterações importantes do Prospectra são registradas neste arquivo.
 - Dashboard com indicadores, distribuição por etapa, follow-ups e cobertura por cidade/região.
 
 ### Coleta e estabilidade
-- Pausar, continuar e cancelar uma coleta.
+- Pausar, continuar e cancelar uma coleta, com checkpoint persistente e retomada pela fila ignorando leads já salvos.
 - Retomada prática de pesquisas com opção de pular registros já salvos.
 - Fila sequencial de pesquisas por segmento, cidade, meta e nota mínima.
 - Observação de mudanças do DOM com MutationObserver e reconhecimento ampliado de áreas de resultados.

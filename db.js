@@ -1,3 +1,4 @@
+import { normalizeCaptureCheckpoint } from './checkpoint-utils.js';
 const DB_NAME = 'prospectra_db';
 const DB_VERSION = 1;
 const STORE = 'records';
@@ -123,4 +124,25 @@ export function validateBackup(value) {
   restored.settings.supabaseAnonKey = '';
   restored.settings.supabaseSession = null;
   return restored;
+}
+
+
+const CAPTURE_CHECKPOINT_KEY = 'capture_checkpoint_v1';
+
+export async function saveCaptureCheckpoint(checkpoint) {
+  await ensureInitialized();
+  const safe = normalizeCaptureCheckpoint(checkpoint);
+  await writeRecords([[CAPTURE_CHECKPOINT_KEY, safe]]);
+  return safe;
+}
+
+export async function loadCaptureCheckpoint() {
+  await ensureInitialized();
+  return (await readRecord(CAPTURE_CHECKPOINT_KEY)) || null;
+}
+
+export async function clearCaptureCheckpoint() {
+  await ensureInitialized();
+  await writeRecords([[CAPTURE_CHECKPOINT_KEY, null]]);
+  return true;
 }

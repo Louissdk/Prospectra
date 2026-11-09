@@ -9,13 +9,13 @@ O Prospectra é uma extensão Chrome Manifest V3 dividida em quatro partes princ
 | content.js | Detecta resultados do Maps, abre fichas, coleta campos e reporta progresso |
 | service-worker.js | Persiste lotes, consulta sites públicos, verifica DNS/MX e agenda notificações |
 | sidepanel.js | Interface, CRM, fila de pesquisas, relatórios e integrações |
-| db.js | Inicialização, migração e persistência IndexedDB |
+| db.js | Inicialização, migração, persistência IndexedDB e checkpoints |
+| checkpoint-utils.js | Normalização e limites dos dados de retomada de coleta |
 | crm-utils.js | Normalização, score, Place ID, endereço, telefone, CNPJ e templates |
 | capture-utils.js | Deduplicação, mesclagem e resumo da coleta |
 | contact-utils.js | E-mails, URLs públicas, telefones, WhatsApp e CSV |
 | workbook.js | Geração do arquivo Excel XLSX |
 | spreadsheet-import.js | Leitura de XLSX via diretório ZIP, relações do workbook e shared strings |
-| cloud-utils.js | Validação estrita de URLs Google Maps/Supabase e paginação PostgREST |
 
 ## Fluxo da captura
 
@@ -31,7 +31,7 @@ O heartbeat informa que a comunicação continua viva. O progresso informa mudan
 
 ## Persistência local
 
-O banco usa IndexedDB com uma chave de estado contendo leads, atividades, pesquisas, fila, configurações, lista de não contatar e diagnósticos.
+O banco usa IndexedDB com uma chave de estado contendo leads, atividades, pesquisas, fila, configurações, lista de não contatar e diagnósticos. Checkpoints de coleta são armazenados em uma chave separada, com a consulta, último estabelecimento processado, contadores e status; assim, atualizar o checkpoint não regrava a base inteira de leads.
 
 Na primeira abertura da versão 2.0, se o estado novo não existe, o Prospectra lê a chave prospectra_leads_v1 do Chrome Storage e migra os registros. A versão antiga não é apagada durante a migração.
 
@@ -74,7 +74,7 @@ Envia um JSON com os leads para um Web App do Apps Script implantado pelo usuár
 ### Supabase
 Autentica com e-mail e senha na API Auth e usa a chave anon/public com RLS. A tabela guarda cada lead como JSONB por usuário. A senha não é salva; tokens de sessão ficam no banco local do navegador.
 
-A sincronização valida o domínio HTTPS do projeto, lê a nuvem em páginas de até 1.000 registros com contagem exata, recusa bases acima do limite local de 10.000 leads, mescla os registros locais e remotos e envia atualizações em lotes de até 200. Exclusões não são propagadas nesta versão.
+A sincronização lê a nuvem em páginas de até 1.000 registros, com limite de 10.000 registros por sincronização, mescla os registros locais e remotos e envia atualizações em lotes de até 200. Exclusões não são propagadas nesta versão.
 
 ## Testes
 

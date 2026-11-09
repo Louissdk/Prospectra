@@ -1,7 +1,7 @@
 import { extractContactLinks, extractEmails, isPublicHttpUrl } from './contact-utils.js';
 import { extractCnpj, extractPhones, extractPublicProfiles, classifyEmail, isDoNotContact } from './crm-utils.js';
 import { mergeLeadRecords } from './capture-utils.js';
-import { loadAppState, saveAppState, saveLeadBatch } from './db.js';
+import { loadAppState, saveAppState, saveLeadBatch, saveCaptureCheckpoint, clearCaptureCheckpoint } from './db.js';
 
 async function ensureFollowUpAlarm() {
   try {
@@ -243,6 +243,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     saveLeadBatch(items, mergeLeadRecords)
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) => sendResponse({ ok: false, error: error?.message || 'Não foi possível salvar o lote no IndexedDB.' }));
+    return true;
+  }
+  if (message?.type === 'PROSPECTRA_SAVE_CHECKPOINT') {
+    saveCaptureCheckpoint(message.checkpoint)
+      .then((checkpoint) => sendResponse({ ok: true, checkpoint }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || 'Não foi possível salvar o checkpoint.' }));
+    return true;
+  }
+  if (message?.type === 'PROSPECTRA_CLEAR_CHECKPOINT') {
+    clearCaptureCheckpoint()
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || 'Não foi possível limpar o checkpoint.' }));
     return true;
   }
   if (message?.type === 'PROSPECTRA_SET_FOLLOWUPS') {

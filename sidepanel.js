@@ -1,12 +1,12 @@
 import { buildWhatsAppUrl, normalizePhone, safeCsvCell, toCsv } from './contact-utils.js';
 import { createXlsx } from './workbook.js';
 import { parseXlsxRows } from './spreadsheet-import.js';
-import { mergeLeadRecords, summarizeCapture } from './capture-utils.js';
+import { mergeLeadRecords, summarizeCapture, captureResumeLabel, isResumableCheckpoint } from './capture-utils.js';
 import {
   CRM_STAGES, DEFAULT_MESSAGE_TEMPLATE, DEFAULT_WEIGHTS, classifyEmail,
   isDoNotContact, normalizeCompanyName, normalizeLeadRecord, qualityScore, renderTemplate, identityKeyForLead
 } from './crm-utils.js';
-import { loadAppState, saveAppState, createBackup, validateBackup } from './db.js';
+import { loadAppState, saveAppState, createBackup, validateBackup, loadCaptureCheckpoint } from './db.js';
 import { normalizeSupabaseProjectUrl, parsePostgrestTotal, buildRangeHeader, isGoogleMapsUrl } from './cloud-utils.js';
 
 const $ = (selector) => document.querySelector(selector);
@@ -29,6 +29,7 @@ let busy = false;
 let queueRunning = false;
 let queueStopRequested = false;
 let activeTask = null;
+let lastCaptureCheckpoint = null;
 let visibleLeadCount = PAGE_SIZE;
 let activeCaptureItems = [];
 let currentView = 'overview';
@@ -97,6 +98,7 @@ async function persist() {
 }
 async function load() {
   state = await loadAppState();
+  lastCaptureCheckpoint = await loadCaptureCheckpoint().catch(() => null);
   state.settings = { ...state.settings, weights: { ...DEFAULT_WEIGHTS, ...(state.settings?.weights || {}) }, messageTemplate: state.settings?.messageTemplate || DEFAULT_MESSAGE_TEMPLATE };
   state.leads = mergeLeadRecords([], (state.leads || []).map((lead) => normalizeCurrentLead(lead)), MAX_LEADS);
   state.queue = (state.queue || []).map((item) => item.status === 'running' ? { ...item, status:'interrupted', message:'Execução interrompida; pode ser retomada.' } : item);
@@ -245,6 +247,15 @@ function renderPipeline() {
   }).join('');
 }
 function renderResearch() {
+  const checkpointNotice=$('#checkpointNotice');
+  const checkpointText=$('#checkpointText');
+  const resumeButton=$('#resumeCheckpointButton');
+  if (checkpointNotice && checkpointText && resumeButton) {
+    checkpointNotice.hidden=!lastCaptureCheckpoint;
+    checkpointText.textContent=lastCaptureCheckpoint?captureResumeLabel(lastCaptureCheckpoint):'';
+    resumeButton.hidden=!isResumableCheckpoint(lastCaptureCheckpoint);
+    resumeButton.disabled=busy||queueRunning;
+  }
   $('#queueCount').textContent = state.queue.length;
   $('#queueList').innerHTML = state.queue.length ? state.queue.map((item) => '<div class="queue-item"><div><strong>' + escapeHtml(item.term) + ' · ' + escapeHtml(item.city) + '</strong><small>' + (item.limit === 0 ? 'Todos disponíveis' : item.limit + ' leads') + ' · nota ' + item.rating + '+ · ' + (item.collected || 0) + ' coletados</small></div><div><span class="queue-status">' + escapeHtml(item.status || 'pending') + '</span><button data-action="remove-queue" data-id="' + escapeHtml(item.id) + '" title="Remover">✕</button></div></div>').join('') : '<div class="empty-state compact"><b>Nenhuma pesquisa na fila</b><small>Adicione uma pesquisa acima para começar.</small></div>';
   $('#savedSearchList').innerHTML = state.searches.length ? state.searches.map((item) => '<div class="saved-search-item"><div><strong>' + escapeHtml(item.term) + ' · ' + escapeHtml(item.city) + '</strong><small>Salva em ' + formatDate(item.createdAt) + '</small></div><div><button data-action="queue-saved" data-id="' + escapeHtml(item.id) + '">Adicionar à fila</button><button data-action="remove-search" data-id="' + escapeHtml(item.id) + '">✕</button></div></div>').join('') : '<div class="empty-state compact"><b>Sem pesquisas salvas</b><small>Salve pesquisas recorrentes para reutilizá-las.</small></div>';
@@ -596,10 +607,11 @@ async function runCapture(tab,params={}) {
   try {
     const acknowledgement=await chrome.tabs.sendMessage(tab.id,{
       type:'PROSPECTRA_CAPTURE_START',taskId,mode:params.mode||'visible',limit,minRating,
-      searchTerm,city,skipPlaceIds,skipMapsUrls
+      searchTerm,city,skipPlaceIds,skipMapsUrls,queueItemId:params.queueItemId||''
     });
     if (!acknowledgement?.ok) throw new Error(acknowledgement?.error||'Não foi possível iniciar a captura.');
     const response=await waiter.promise;
+    lastCaptureCheckpoint=await loadCaptureCheckpoint().catch(()=>lastCaptureCheckpoint);
     const fresh=response.items||[];
     mergeIncoming(fresh);
     if (fresh.length) await persist();
@@ -623,6 +635,8 @@ async function runCapture(tab,params={}) {
     return {response,items:fresh};
   } catch(error) {
     chrome.tabs.sendMessage(tab.id,{type:'PROSPECTRA_CAPTURE_CANCEL',taskId}).catch(()=>{});
+    lastCaptureCheckpoint=await loadCaptureCheckpoint().catch(()=>lastCaptureCheckpoint);
+    if (currentView==='research') renderResearch();
     setStatus(error?.message||'Falha na coleta.','error');
     throw error;
   } finally {
@@ -734,16 +748,22 @@ async function runQueue() {
         await waitForTabReady(tab.id,url);
         await chrome.scripting.executeScript({target:{tabId:tab.id},files:['content.js']});
         if (queueStopRequested) break;
-        const result=await runCapture(tab,{limit:item.limit,minRating:item.rating,searchTerm:item.term,city:item.city,skipExisting:$('#skipExisting').checked,enrich:$('#autoEnrich').checked});
+        const result=await runCapture(tab,{limit:item.limit,minRating:item.rating,searchTerm:item.term,city:item.city,skipExisting:$('#skipExisting').checked,enrich:$('#autoEnrich').checked,queueItemId:item.id});
         currentQueueItem=state.queue.find((row)=>row.id===item.id);
         if (currentQueueItem) {
-          currentQueueItem.status=(Number(result.response.requested||0)>result.items.length)?'partial':'done';
+          const reason=String(result.response.stopReason||'');
+          const interrupted=/cancelad|verificação|limitação|falha ao retornar|não foi possível retornar|interrompid/i.test(reason);
+          currentQueueItem.status=interrupted?'interrupted':(Number(result.response.requested||0)>result.items.length?'partial':'done');
           currentQueueItem.collected=(currentQueueItem.collected||0)+result.items.length;
           currentQueueItem.message=result.response.stopReason||'Concluída';
         }
       } catch(error) {
         currentQueueItem=state.queue.find((row)=>row.id===item.id);
-        if (currentQueueItem) { currentQueueItem.status='failed';currentQueueItem.message=error?.message||'Falha na pesquisa'; }
+        if (currentQueueItem) {
+          const message=error?.message||'Falha na pesquisa';
+          currentQueueItem.status=/cancelad|verificação|limitação|interrompid|não foi possível/i.test(message)?'interrupted':'failed';
+          currentQueueItem.message=message;
+        }
         if (queueStopRequested) break;
       }
       await persist();
@@ -752,6 +772,39 @@ async function runQueue() {
   } catch(error) {setStatus(error?.message||'Não foi possível executar a fila.','error');}
   finally {queueRunning=false;queueStopRequested=false;renderResearch();setBusy(false);}
 }
+async function resumeCheckpoint() {
+  if (busy || queueRunning) return;
+  const checkpoint=lastCaptureCheckpoint;
+  if (!isResumableCheckpoint(checkpoint)) {
+    setStatus('Não há checkpoint interrompido para retomar.','warning');
+    return;
+  }
+  let item=state.queue.find((row)=>row.id && row.id===checkpoint.queueItemId);
+  if (!item) {
+    item={
+      id:makeId(),
+      term:checkpoint.searchTerm,
+      city:checkpoint.city,
+      limit:Number(checkpoint.requested)||0,
+      rating:Number(checkpoint.minRating)||0,
+      status:'interrupted',
+      collected:0,
+      createdAt:new Date().toISOString(),
+      message:'Retomada criada a partir do último checkpoint.'
+    };
+    state.queue.unshift(item);
+  } else {
+    item.status='interrupted';
+    item.limit=Number(checkpoint.requested)||0;
+    item.rating=Number(checkpoint.minRating)||0;
+    item.message='Retomada solicitada a partir do último checkpoint.';
+  }
+  await persist();
+  switchView('research');
+  renderResearch();
+  await runQueue();
+}
+
 async function pauseOrResume() {
   if (!activeTask) return;
   const next=!activeTask.paused;
@@ -1087,6 +1140,7 @@ $('#supabaseSyncButton').addEventListener('click',syncSupabase);
 $('#saveSearchButton').addEventListener('click',saveSearchOnly);
 $('#enqueueSearchButton').addEventListener('click',addQueueItem);
 $('#runQueueButton').addEventListener('click',runQueue);
+$('#resumeCheckpointButton').addEventListener('click',resumeCheckpoint);
 $('#stopQueueButton').addEventListener('click',()=>{queueStopRequested=true;cancelCapture();});
 $('#clearQueueButton').addEventListener('click',async()=>{
   if (!confirm('Remover todas as pesquisas da fila? As empresas já capturadas permanecem salvas.')) return;

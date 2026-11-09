@@ -28,7 +28,7 @@ A coleta abre as fichas individualmente, lê os dados públicos disponíveis e v
 
 Durante a coleta, use **Pausar** para interromper a navegação entre etapas e **Continuar** para retomar. **Cancelar** pede o encerramento cooperativo. Lotes já confirmados permanecem salvos.
 
-Para retomar uma pesquisa interrompida, execute a mesma consulta com **Pular empresas já salvas** ativo. A extensão ignora os registros conhecidos e procura novas empresas dentro dos resultados que o Maps apresenta.
+O Prospectra grava um checkpoint com a consulta, meta, nota mínima, último estabelecimento processado e contadores. Se a coleta for interrompida, abra a área **Pesquisas** e use **Retomar pesquisa**. A extensão recria ou reativa a pesquisa na fila e começa novamente pela lista do Maps, ignorando os leads que já foram confirmados no IndexedDB. O checkpoint não restaura a posição exata da rolagem; ele permite continuar a mesma pesquisa sem duplicar o que já foi salvo.
 
 ## 4. Usar fila de pesquisas
 

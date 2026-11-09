@@ -20,7 +20,7 @@ Este roadmap separa o que existe no produto do que seria uma evolução futura. 
 
 ### 2.1 — Robustez operacional
 - [ ] Testes E2E em Chrome real com cenários controlados.
-- [ ] Checkpoints persistentes de cada pesquisa para retomada após fechar o Chrome.
+- [x] Checkpoints persistentes e retomada prática da consulta ignorando leads já salvos.
 - [ ] Melhor detecção de fusos/horários e tratamento de campos de endereço.
 - [ ] Histórico de alterações do registro e auditoria de mesclagens.
 - [ ] Fila de enriquecimento com tentativas retomáveis.

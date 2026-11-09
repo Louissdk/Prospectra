@@ -116,6 +116,10 @@
       </section>
       <section class="panel queue-panel">
         <div class="panel-heading"><div><span class="eyebrow">EXECUÇÃO SEQUENCIAL</span><h2>Fila de pesquisas <span id="queueCount" class="count-pill">0</span></h2></div><div class="panel-actions"><button id="clearQueueButton" class="text-button">Limpar</button><button id="runQueueButton" class="button button-primary button-small">Executar fila</button></div></div>
+        <div id="checkpointNotice" class="checkpoint-notice" role="status" aria-live="polite" hidden>
+          <div id="checkpointText"></div>
+          <button id="resumeCheckpointButton" class="button button-primary button-small" hidden>Retomar pesquisa</button>
+        </div>
         <div id="queueList" class="queue-list"><div class="empty-state compact"><b>Nenhuma pesquisa na fila</b><small>Adicione um segmento e uma região acima.</small></div></div>
         <button id="stopQueueButton" class="button button-danger button-full" hidden>Parar fila</button>
       </section>

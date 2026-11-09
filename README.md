@@ -44,7 +44,7 @@ A versão 2.0.0 expande o produto para além da captura: inclui banco local Inde
 - Filtros de nota mínima e quantidade configurável.
 - Identificação por Place ID quando o identificador está disponível.
 - Detecção de mudanças no DOM, múltiplos seletores e área de rolagem.
-- Pausar, continuar e cancelar a coleta.
+- Pausar, continuar e cancelar a coleta, com checkpoint persistente para retomar pesquisas interrompidas.
 - Recuperação de abertura de ficha com nova tentativa controlada.
 - Diagnóstico técnico copiável para investigar falhas.
 - Interrupção segura quando aparecem CAPTCHA, tela de verificação ou limitação de acesso.

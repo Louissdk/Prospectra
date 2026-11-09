@@ -285,3 +285,7 @@ body{background:radial-gradient(ellipse at 92% -8%,rgba(1,141,62,.08),transparen
 input,select,textarea{accent-color:#018D3E}
 ::selection{background:rgba(1,141,62,.20);color:#173B27}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+.checkpoint-notice{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.checkpoint-notice>div{flex:1;min-width:180px}
+.checkpoint-notice button[hidden]{display:none}
