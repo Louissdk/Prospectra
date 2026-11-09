@@ -80,6 +80,12 @@
       </div>
       <section class="panel coverage-panel">
         <div class="panel-heading"><div><span class="eyebrow">COBERTURA GEOGRÁFICA</span><h2>Onde estão seus leads</h2></div><span id="cityCount" class="count-pill">0 regiões</span></div>
+        <div id="coverageMap" class="coverage-map" role="img" aria-label="Distribuição relativa dos leads com coordenadas exatas"></div>
+        <small id="geoCoverageNote" class="geo-coverage-note">Aguardando coordenadas das fichas.</small>
+        <div class="coverage-actions">
+          <button id="exportKmlButton" class="button button-quiet" disabled>Exportar KML</button>
+          <button id="exportGeoJsonButton" class="button button-quiet" disabled>Exportar GeoJSON</button>
+        </div>
         <div id="coverageSummary" class="coverage-list"></div>
       </section>
     </section>

@@ -11,6 +11,7 @@ import { normalizeSupabaseProjectUrl, parsePostgrestTotal, buildRangeHeader, isG
 import { enrichmentPermissionOrigins } from './permission-utils.js';
 import { classifyQueueOutcome, summarizeQueueOutcomes } from './queue-utils.js';
 import { MAX_DELETION_TOMBSTONES, normalizeDeletionTombstone, createDeletionTombstone, mergeDeletionTombstones, applyDeletionTombstones, pruneSupersededTombstones, buildSupabaseSyncRows } from './sync-utils.js';
+import { getGeolocatedLeads, buildGeoJSON, buildKML, buildCoverageSvg } from './geo-utils.js';
 
 const $ = (selector) => document.querySelector(selector);
 const PAGE_SIZE = 50;
@@ -23,6 +24,7 @@ const EXPORT_FIELDS = [
   ['emailStatus','Status do e-mail'],['mxStatus','DNS/MX'],['rating','Avaliação'],
   ['reviewCount','Nº avaliações'],['stage','Etapa CRM'],['owner','Responsável'],
   ['qualityScore','Qualidade'],['tags','Etiquetas'],['nextFollowUp','Próximo follow-up'],
+  ['latitude','Latitude'],['longitude','Longitude'],['coordinatesSource','Origem das coordenadas'],
   ['cnpj','CNPJ'],['instagram','Instagram'],['facebook','Facebook'],['linkedin','LinkedIn'],
   ['openingHours','Horários'],['websiteStatus','Status do site'],['mapsUrl','Google Maps'],
   ['searchTerm','Termo pesquisado'],['collectedAt','Data da coleta']
@@ -155,7 +157,16 @@ function renderOverview() {
   $('#followUpSummary').innerHTML = upcoming.length ? upcoming.map((lead) => '<div class="followup-item"><div><strong>' + escapeHtml(lead.name) + '</strong><small>' + escapeHtml(lead.city || lead.category || 'Sem região') + '</small></div><span class="followup-date">' + formatDate(lead.nextFollowUp) + '</span></div>').join('') : '<div class="empty-state compact"><b>Sem follow-ups agendados</b><small>Agende o próximo contato diretamente no cartão do lead.</small></div>';
   const allCities = Object.entries(leads.reduce((map, lead) => { const city = (lead.city || 'Região não informada').trim(); map[city] = (map[city] || 0) + 1; return map; }, {})).sort((a,b) => b[1]-a[1]);
   const cities = allCities.slice(0,8);
+  const geolocated = getGeolocatedLeads(leads);
   $('#cityCount').textContent = allCities.length + ' regiões';
+  $('#geoCoverageNote').textContent = geolocated.length
+    ? geolocated.length.toLocaleString('pt-BR') + ' de ' + total.toLocaleString('pt-BR') + ' lead(s) com coordenadas precisas. Os demais não possuem localização exata extraída.'
+    : 'Nenhum lead possui coordenadas precisas ainda. O Prospectra não inventa pontos a partir do centro da cidade.';
+  $('#coverageMap').innerHTML = geolocated.length
+    ? buildCoverageSvg(geolocated)
+    : '<div class="empty-state compact"><b>Mapa aguardando coordenadas</b><small>As coordenadas são capturadas quando a URL da ficha do Maps as disponibiliza.</small></div>';
+  $('#exportGeoJsonButton').disabled = !geolocated.length;
+  $('#exportKmlButton').disabled = !geolocated.length;
   $('#coverageSummary').innerHTML = cities.length ? cities.map(([city,count]) => '<div class="coverage-row"><a href="https://www.google.com/maps/search/' + encodeURIComponent(city) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(city) + '</a><div class="coverage-track"><div class="coverage-fill" style="width:' + (count / Math.max(1,cities[0][1]) * 100) + '%"></div></div><span class="coverage-count">' + count + '</span></div>').join('') : '<div class="empty-state compact"><b>Ainda sem cobertura</b><small>A cidade será preenchida pelas pesquisas e pelas fichas do Maps.</small></div>';
 }
 
@@ -402,7 +413,7 @@ function renderExportValue(lead,key,preset) {
     address:lead.address,city:lead.city,website:lead.website,emails:(lead.emails||[]).join(' | '),
     emailStatus:lead.emailStatus,mxStatus:lead.mxStatus,rating:lead.rating,reviewCount:lead.reviewCount,
     stage:stageLabel(lead.stage),owner:lead.owner,qualityScore:qualityScore(lead,state.settings.weights),
-    tags:(lead.tags||[]).join(' | '),nextFollowUp:lead.nextFollowUp,cnpj:lead.cnpj,
+    tags:(lead.tags||[]).join(' | '),nextFollowUp:lead.nextFollowUp,latitude:lead.latitude,longitude:lead.longitude,coordinatesSource:lead.coordinatesSource,cnpj:lead.cnpj,
     instagram:lead.socialProfiles?.instagram,facebook:lead.socialProfiles?.facebook,linkedin:lead.socialProfiles?.linkedin,
     openingHours:lead.openingHours,websiteStatus:lead.websiteStatus,mapsUrl:lead.mapsUrl,
     searchTerm:lead.searchTerm,collectedAt:lead.collectedAt
@@ -432,6 +443,21 @@ function downloadFile(filename,content,mime) {
     setTimeout(() => URL.revokeObjectURL(url),30000);
   });
 }
+function exportGeospatial(format) {
+  const geolocated = getGeolocatedLeads(leads);
+  if (!geolocated.length) {
+    setStatus('Não há coordenadas precisas para exportar. Faça coletas em fichas do Maps que incluam coordenadas na URL.','warning');
+    return;
+  }
+  const date = new Date().toISOString().slice(0,10);
+  if (format === 'geojson') {
+    downloadFile('prospectra-cobertura-' + date + '.geojson',JSON.stringify(buildGeoJSON(geolocated),null,2),'application/geo+json');
+  } else {
+    downloadFile('prospectra-cobertura-' + date + '.kml',buildKML(geolocated),'application/vnd.google-earth.kml+xml');
+  }
+  setStatus('Arquivo geográfico exportado com ' + geolocated.length.toLocaleString('pt-BR') + ' ponto(s) com coordenadas exatas.','success');
+}
+
 function exportXlsx() {
   if (!leads.length) return;
   downloadFile('prospectra-leads-' + new Date().toISOString().slice(0,10) + '.xlsx',createXlsx(leads),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -456,6 +482,7 @@ function rowsToLeads(rows, source = 'Importação CSV') {
       rating:value('avaliação (estrelas)','avaliação','rating'),
       reviewCount:value('quantidade de avaliações','nº avaliações','review count'),
       city:value('cidade / região','cidade','city','billing city'),
+      latitude:value('latitude','lat'),longitude:value('longitude','lon','lng'),coordinatesSource:value('origem das coordenadas','coordinates source'),
       searchTerm:value('termo pesquisado','search term'),
       mapsUrl:value('link google maps','google maps','maps url'),
       stage:value('etapa crm','stage'),
@@ -1195,6 +1222,8 @@ $('#exportCsvButton').addEventListener('click',()=>exportSelectedCsv(getFiltered
 $('#enrichPendingButton').addEventListener('click',enrichExistingLeads);
 $('#exportXlsxButton').addEventListener('click',exportXlsx);
 $('#exportCustomButton').addEventListener('click',()=>exportSelectedCsv(leads));
+$('#exportGeoJsonButton').addEventListener('click',()=>exportGeospatial('geojson'));
+$('#exportKmlButton').addEventListener('click',()=>exportGeospatial('kml'));
 $('#backupButton').addEventListener('click',exportBackup);
 $('#importButton').addEventListener('click',() => $('#importFile').click());
 $('#importFile').addEventListener('change',async(event)=>{

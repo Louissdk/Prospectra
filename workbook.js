@@ -17,6 +17,9 @@ const COLUMNS = [
   { key: 'rating', title: 'Avaliação', width: 13 },
   { key: 'reviewCount', title: 'Nº avaliações', width: 15 },
   { key: 'city', title: 'Cidade / região', width: 23 },
+  { key: 'latitude', title: 'Latitude', width: 16 },
+  { key: 'longitude', title: 'Longitude', width: 16 },
+  { key: 'coordinatesSource', title: 'Origem das coordenadas', width: 26 },
   { key: 'searchTerm', title: 'Termo pesquisado', width: 26 },
   { key: 'mapsUrl', title: 'Google Maps', width: 38 },
   { key: 'collectedAt', title: 'Data da coleta', width: 22 }

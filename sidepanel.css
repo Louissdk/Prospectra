@@ -111,6 +111,14 @@ a{color:inherit}
 .coverage-panel{margin-top:2px}
 .count-pill{padding:4px 7px;font-size:7px}
 .coverage-list{display:grid;gap:8px;margin-top:13px}
+.coverage-map{width:100%;margin-top:14px;border:1px solid rgba(1,141,62,.14);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#FFFDF7,#F5EEDC)}
+.coverage-map svg{display:block;width:100%;height:auto;max-height:300px}
+.coverage-map .coverage-gridline{stroke:rgba(1,141,62,.12);stroke-width:1;stroke-dasharray:4 6}
+.coverage-map .coverage-dot{fill:#018D3E;stroke:#FDF7E6;stroke-width:3}
+.coverage-map .coverage-dot:hover{fill:#E71506}
+.geo-coverage-note{display:block;margin-top:8px;color:var(--muted);font-size:8px;line-height:1.5}
+.coverage-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.coverage-actions .button{min-height:31px;padding:0 10px;font-size:8px}
 .coverage-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(70px,2fr) 26px;gap:8px;align-items:center;font-size:8px}
 .coverage-row a{color:#365B40;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .coverage-row a:hover{color:var(--blue)}
