@@ -21,3 +21,10 @@ test('privacy policy describes Supabase and Sheets deletions consistently', () =
   assert.doesNotMatch(privacy,/não possui exclusão remota automática/i);
   assert.doesNotMatch(privacy,/deleted_at\),/);
 });
+
+
+test('Supabase guide documents the explicit Data API grant rollout', () => {
+  assert.match(guide,/30 de outubro de 2026/);
+  assert.match(guide,/grants explícitos/);
+  assert.match(guide,/PGRST205/);
+});

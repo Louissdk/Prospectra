@@ -12,6 +12,10 @@ Todas as alterações importantes do Prospectra são registradas neste arquivo.
 - Exclusões individuais propagadas entre dispositivos por tombstones Supabase; backups mantêm o histórico para impedir reaparecimento de leads apagados.
 - Conflitos entre dispositivos passam a respeitar o registro com updatedAt mais recente, preservando a união de atividades, etiquetas, contatos e histórico.
 - Parser de endereços melhorado para rua, número, complemento, bairro, cidade, UF e CEP.
+- Estado Não contatar passou a respeitar a atualização mais recente; capturas do Maps sem campo CRM não apagam um bloqueio salvo.
+- Reconciliação de tombstones indexada por Place ID e aliases, mantendo o limite documentado de 10.000 leads + 10.000 exclusões sem varredura quadrática.
+- Identificadores gerados para tombstones preservam a identidade completa e evitam colisões por truncamento.
+- Apps Script valida ação, token e estrutura do payload antes de adquirir o bloqueio compartilhado; integração protegida contra chamadas inválidas que monopolizem o lock.
 
 
 

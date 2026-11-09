@@ -18,7 +18,7 @@
 - [ ] Confirmar que remover uma pesquisa da fila ou limpar a fila invalida apenas o checkpoint vinculado a ela.
 - [ ] Confirmar que apagar a base remove leads, interações, pesquisas, bloqueios, diagnósticos e checkpoint, preservando as configurações de integração.
 - [ ] Testar Google Sheets e Supabase em projetos/planilhas reais de homologação (não executado pelo CI).
-- [ ] Testar opções de Não contatar e follow-up.
+- [ ] Testar opções de Não contatar e follow-up, inclusive remover o bloqueio e confirmar que uma captura Maps posterior não restaura o bloqueio.
 - [ ] Testar validação de CNPJ numérico e alfanumérico com exemplos conhecidos da Receita Federal.
 - [ ] Revisar permissões do Manifest e mensagens de consentimento.
 - [ ] Criar um backup antes de atualizar instalações de uso real.

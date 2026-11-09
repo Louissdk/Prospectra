@@ -22,7 +22,7 @@ A sincronização opcional permite compartilhar a base de leads entre instalaç�
 
 ### Acesso pela Data API
 
-Em projetos Supabase atualizados, uma tabela recém-criada pode existir no PostgreSQL sem estar acessível pela Data API. O schema deste repositório inclui um grant explícito para `authenticated`:
+Desde 30 de outubro de 2026, o Supabase passou a exigir grants explícitos para que novas tabelas do schema `public` sejam acessíveis pela Data API em todos os projetos. Uma tabela pode existir no PostgreSQL e ainda não estar exposta pelo PostgREST. O schema deste repositório inclui o grant mínimo para `authenticated`:
 
 ```sql
 grant select, insert, update, delete on public.prospectra_leads to authenticated;

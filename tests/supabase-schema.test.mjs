@@ -12,7 +12,7 @@ test('Supabase schema supports soft deletion for existing and new projects', () 
 
 test('Supabase schema keeps user isolation and identity uniqueness', () => {
   assert.match(schema,/enable row level security/i);
-  assert.match(schema,/auth\.uid\(\) = user_id/i);
+  assert.match(schema,/\(select auth\.uid\(\)\) = user_id/i);
   assert.match(schema,/prospectra_leads_user_identity_uidx/i);
 });
 

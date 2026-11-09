@@ -40,26 +40,26 @@ drop policy if exists "Users can read their own Prospectra leads" on public.pros
 create policy "Users can read their own Prospectra leads"
   on public.prospectra_leads for select
   to authenticated
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 drop policy if exists "Users can insert their own Prospectra leads" on public.prospectra_leads;
 create policy "Users can insert their own Prospectra leads"
   on public.prospectra_leads for insert
   to authenticated
-  with check (auth.uid() = user_id);
+  with check ((select auth.uid()) = user_id);
 
 drop policy if exists "Users can update their own Prospectra leads" on public.prospectra_leads;
 create policy "Users can update their own Prospectra leads"
   on public.prospectra_leads for update
   to authenticated
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 
 drop policy if exists "Users can delete their own Prospectra leads" on public.prospectra_leads;
 create policy "Users can delete their own Prospectra leads"
   on public.prospectra_leads for delete
   to authenticated
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 grant select, insert, update, delete on public.prospectra_leads to authenticated;
 
