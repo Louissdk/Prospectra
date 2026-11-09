@@ -89,7 +89,7 @@ jobs:
           cp ./*.js "$PACKAGE_DIR/"
           cp -r icons docs "$PACKAGE_DIR/"
           cp README.md LICENSE.md PRIVACY.md CHANGELOG.md "$PACKAGE_DIR/"
-          (cd "$PACKAGE_DIR" && zip -qr "../Prospectra-$VERSION.zip" .)
+          (cd "$PACKAGE_DIR" && zip -qr "../Prospectra-$VERSION.zip" manifest.json sidepanel.html sidepanel.css *.js icons docs README.md LICENSE.md PRIVACY.md CHANGELOG.md)
           PACKAGE="dist/Prospectra-$VERSION.zip"
           unzip -Z1 "$PACKAGE" | grep -qx 'manifest.json'
           if unzip -Z1 "$PACKAGE" | grep -Eq '(^|/)(tests|node_modules)/'; then

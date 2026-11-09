@@ -102,10 +102,11 @@ Requer Git e Node.js 20.12 ou superior para executar os testes de importação X
 ~~~powershell
 git clone https://github.com/Louissdk/Prospectra.git
 cd Prospectra
-npm install fake-indexeddb@6.2.8
-npm run check
-npm test
+npm install
+npm run verify
 ~~~
+
+Para executar o teste adicional em Chromium real, instale o Chrome e defina `CHROME_BIN` com o caminho do executável antes de rodar `npm run test:chromium`.
 
 Depois, carregue a pasta do repositório em chrome://extensions usando **Carregar sem compactação**.
 

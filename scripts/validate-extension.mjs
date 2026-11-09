@@ -67,7 +67,7 @@ for (const file of ['content.js','service-worker.js','sidepanel.js','db.js','crm
 }
 
 const readme = await readFile('README.md','utf8');
-for (const localPath of ['docs/assets/banner.svg','docs/assets/interface-preview.svg','docs/IDENTIDADE-VISUAL.md','docs/GUIA-RAPIDO.md','docs/ARQUITETURA.md','docs/SOLUCAO-DE-PROBLEMAS.md','docs/PRIVACIDADE-E-LGPD.md','docs/integrations/google-sheets.md','docs/integrations/supabase.md','docs/supabase/schema.sql','docs/ROADMAP.md','docs/MATERIAIS-COMERCIAIS.md','docs/RELEASE-CHECKLIST.md']) {
+for (const localPath of ['docs/assets/banner.svg','docs/assets/interface-preview.svg','docs/IDENTIDADE-VISUAL.md','docs/GUIA-RAPIDO.md','docs/ARQUITETURA.md','docs/SOLUCAO-DE-PROBLEMAS.md','docs/PRIVACIDADE-E-LGPD.md','docs/integrations/google-sheets.md','docs/integrations/supabase.md','docs/supabase/schema.sql','docs/ROADMAP.md','docs/MATERIAIS-COMERCIAIS.md','docs/RELEASE-CHECKLIST.md','docs/DISTRIBUICAO.md']) {
   if (!(await exists(localPath))) errors.push('Documento/asset referenciado no README ausente: '+localPath);
 }
 
