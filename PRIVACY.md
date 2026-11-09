@@ -71,7 +71,7 @@ Backups JSON, CSV e XLSX exportados ficam sob controle do usuário e seguem as r
 
 Na integração Supabase, exclusões são propagadas como marcadores lógicos (tombstones) quando os dispositivos sincronizam. Isso evita que um lead excluído em um dispositivo reapareça em outro, desde que ambos utilizem a versão compatível e que a sincronização seja concluída. A tabela exige a coluna `deleted_at`, criada pelo script em `docs/supabase/schema.sql`. A sincronização mantém até 10.000 leads ativos e até 10.000 marcadores de exclusão por usuário; exceder esse limite exige exportar/arquivar a base e planejar a retenção antes de continuar.
 
-A integração Google Sheets não possui exclusão remota automática: apagar um lead localmente não remove a linha já enviada à planilha. O usuário deve gerenciar essas cópias diretamente no Google Sheets.
+Na integração Google Sheets, exclusões são enviadas como marcadores lógicos e removidas da aba gerenciada pelo Apps Script na próxima sincronização concluída. Isso não apaga backups nem cópias que o usuário tenha criado em outras abas ou arquivos.
 
 ## 7. Uso responsável e proteção de dados
 

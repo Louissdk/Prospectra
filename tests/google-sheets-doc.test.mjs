@@ -10,13 +10,13 @@ test('Google Sheets template exports exact coordinates and protects against form
   assert.match(docs,/lead\.latitude \?\? ''/);
   assert.match(docs,/lead\.longitude \?\? ''/);
   assert.match(docs,/row\.map\(safeCell\)/);
-  assert.ok(docs.includes(String.raw`return /^[\s]*[=+\-@]/.test(value)`));
+  assert.ok(docs.includes(String.raw\`return /^[\\s]*[=+\\-@]/.test(value)\`));
 });
 
 test('Apps Script expands narrow sheets and neutralizes formula-like strings', () => {
   assert.ok(docs.includes('sheet.getMaxColumns() < headers.length'));
   assert.ok(docs.includes('sheet.insertColumnsAfter(sheet.getMaxColumns()'));
-  assert.ok(docs.includes(String.raw`return /^[\s]*[=+\-@]/.test(value)`));
+  assert.ok(docs.includes(String.raw\`return /^[\\s]*[=+\\-@]/.test(value)\`));
 });
 
 test('Google Sheets integration receives deletion tombstones and removes them by identity', async () => {
@@ -28,13 +28,12 @@ test('Google Sheets integration receives deletion tombstones and removes them by
   assert.match(docs,/deleted: deletedLeadKeys\.length/);
 });
 
-
 test('Apps Script serializes read-modify-write requests and validates the action', () => {
-  const match = docs.match(/~~~javascript\\n([\\s\\S]*?)\\n~~~/);
+  const match = docs.match(/~~~javascript\n([\s\S]*?)\n~~~/);
   assert.ok(match, 'O exemplo completo do Apps Script deve existir.');
   assert.doesNotThrow(() => new vm.Script(match[1]), 'O Apps Script deve ter sintaxe JavaScript válida.');
-  assert.match(match[1], /LockService\\.getScriptLock\\(\\)/);
-  assert.match(match[1], /lock\\.waitLock\\(30000\\)/);
-  assert.match(match[1], /lock\\.releaseLock\\(\\)/);
-  assert.match(match[1], /payload\\.action !== 'upsert'/);
+  assert.match(match[1], /LockService\.getScriptLock\(\)/);
+  assert.match(match[1], /lock\.waitLock\(30000\)/);
+  assert.match(match[1], /lock\.releaseLock\(\)/);
+  assert.match(match[1], /payload\.action !== 'upsert'/);
 });
