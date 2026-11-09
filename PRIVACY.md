@@ -44,7 +44,7 @@ Quando configurado e iniciado pelo usuário, os dados são enviados para a URL d
 ### Supabase
 Quando configurado e iniciado pelo usuário, os dados de leads são sincronizados com o projeto Supabase informado. O acesso deve estar protegido por Row Level Security (RLS), com chave anon/public e sessão de usuário.
 
-A senha digitada é utilizada na chamada de autenticação e não é salva pelo Prospectra. A chave anon/public e os tokens da sessão são armazenados no IndexedDB local para permitir o uso da integração.
+A senha digitada é utilizada na chamada de autenticação e não é salva pelo Prospectra. A chave anon/public e os tokens da sessão são armazenados no IndexedDB local para permitir o uso da integração. O schema aplica Row Level Security por usuário; nunca utilize a chave service_role na extensão.
 
 O backup JSON remove a chave anon/public, o token do Google Sheets e os tokens da sessão Supabase. Ainda assim, o arquivo de backup contém os dados comerciais e deve ser protegido como qualquer cópia da base.
 
@@ -69,7 +69,9 @@ Os dados locais permanecem no perfil Chrome até que o usuário os exclua, remov
 
 Backups JSON, CSV e XLSX exportados ficam sob controle do usuário e seguem as regras de retenção do local onde forem salvos.
 
-A exclusão local não apaga cópias enviadas a integrações. Para remover essas cópias, o usuário deve agir diretamente na planilha Google Sheets ou no projeto Supabase.
+Na integração Supabase, exclusões são propagadas como marcadores lógicos (tombstones) quando os dispositivos sincronizam. Isso evita que um lead excluído em um dispositivo reapareça em outro, desde que ambos utilizem a versão compatível e que a sincronização seja concluída. A tabela exige a coluna `deleted_at), criada pelo script em `docs/supabase/schema.sql`. A sincronização mantém até 10.000 leads ativos e até 10.000 marcadores de exclusão por usuário; exceder esse limite exige exportar/arquivar a base e planejar a retenção antes de continuar.
+
+A integração Google Sheets não possui exclusão remota automática: apagar um lead localmente não remove a linha já enviada à planilha. O usuário deve gerenciar essas cópias diretamente no Google Sheets.
 
 ## 7. Uso responsável e proteção de dados
 

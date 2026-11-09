@@ -6,10 +6,10 @@
 - [ ] Atualizar versão em package.json e manifest.json.
 - [ ] Atualizar CHANGELOG.md com recursos e limitações.
 - [ ] Atualizar README e documentação afetada.
-- [ ] Executar npm run verify em Node.js 20+.
-- [ ] Confirmar que o workflow GitHub Actions ficou verde.
-- [ ] Confirmar que o job package gerou o ZIP limpo e que manifest.json está na raiz do arquivo.
-- [ ] Instalar a pasta em um perfil Chrome limpo.
+- [x] Executar npm run verify em Node.js 20+.
+- [x] Confirmar que o workflow GitHub Actions ficou verde.
+- [x] Confirmar que o job package gerou o ZIP limpo e que manifest.json está na raiz do arquivo.
+- [ ] Instalar a pasta em um perfil Chrome limpo (pendente de validação manual em Chrome estável).
 - [ ] Testar migração de uma base de versão anterior.
 - [ ] Testar interrupção da coleta, persistência do checkpoint e retomada pela fila sem duplicar os leads salvos.
 - [ ] Testar coleta manual controlada no Maps.
@@ -17,7 +17,7 @@
 - [ ] Confirmar que restaurar backup descarta o checkpoint da sessão anterior.
 - [ ] Confirmar que remover uma pesquisa da fila ou limpar a fila invalida apenas o checkpoint vinculado a ela.
 - [ ] Confirmar que apagar a base remove leads, interações, pesquisas, bloqueios, diagnósticos e checkpoint, preservando as configurações de integração.
-- [ ] Testar Google Sheets e Supabase em ambientes próprios de teste.
+- [ ] Testar Google Sheets e Supabase em projetos/planilhas reais de homologação (não executado pelo CI).
 - [ ] Testar opções de Não contatar e follow-up.
 - [ ] Testar validação de CNPJ numérico e alfanumérico com exemplos conhecidos da Receita Federal.
 - [ ] Revisar permissões do Manifest e mensagens de consentimento.
