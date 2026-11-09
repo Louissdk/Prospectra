@@ -1,6 +1,8 @@
 -- Banco descartável de CI: simula apenas as tabelas/funções mínimas do Supabase Auth.
 create role anon nologin;
 create role authenticated nologin;
+create role authenticator login noinherit password 'prospectra-ci-authenticator';
+grant anon, authenticated to authenticator;
 
 create schema auth;
 grant usage on schema auth to authenticated;
@@ -14,11 +16,14 @@ returns uuid
 language sql
 stable
 as $$
-  select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
+  select coalesce(
+    nullif(current_setting('request.jwt.claim.sub', true), ''),
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'
+  )::uuid;
 $$;
 grant execute on function auth.uid() to authenticated;
 
-grant usage on schema public to anon, authenticated;
+grant usage on schema public to anon, authenticated, authenticator;
 
 -- Estado legado da primeira versão, sem identity_key e deleted_at.
 create table public.prospectra_leads (
