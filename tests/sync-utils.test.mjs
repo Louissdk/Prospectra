@@ -56,3 +56,18 @@ test('creates deletion tombstones with the lead identity and aliases', () => {
   assert.ok(tombstone.aliases.includes('place:ChIJ-9'));
   assert.equal(tombstone.deletedAt,'2026-11-09T12:00:00.000Z');
 });
+
+test('a deletion tombstone never removes a different branch sharing name and phone', () => {
+  const deletedBranch={
+    id:'branch-1',identityKey:'place:ChIJ-UNIDADE-1',placeId:'ChIJ-UNIDADE-1',
+    name:'Rede Exemplo',phone:'+551133334444',address:'Rua A, 10',
+    updatedAt:'2026-11-09T10:00:00Z'
+  };
+  const otherBranch={
+    id:'branch-2',identityKey:'place:ChIJ-UNIDADE-2',placeId:'ChIJ-UNIDADE-2',
+    name:'Rede Exemplo',phone:'+551133334444',address:'Rua B, 20',
+    updatedAt:'2026-11-09T10:00:00Z'
+  };
+  const tombstone=createDeletionTombstone(deletedBranch,'2026-11-09T11:00:00Z');
+  assert.deepEqual(applyDeletionTombstones([deletedBranch,otherBranch],[tombstone]),[otherBranch]);
+});

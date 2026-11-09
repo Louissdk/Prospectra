@@ -55,7 +55,11 @@ export function mergeDeletionTombstones(...groups) {
 }
 
 function matchesTombstone(lead, tombstone) {
-  const aliases = new Set(captureLeadAliases(lead));
+  const leadAliases = captureLeadAliases(lead);
+  const leadPlace = leadAliases.find((alias) => alias.startsWith('place:') && !alias.startsWith('place:maps-path:'));
+  const tombstonePlace = tombstone.aliases.find((alias) => alias.startsWith('place:') && !alias.startsWith('place:maps-path:'));
+  if (leadPlace && tombstonePlace && leadPlace !== tombstonePlace) return false;
+  const aliases = new Set(leadAliases);
   const leadIdentity = String(lead.identityKey || '').trim();
   if (leadIdentity) aliases.add(leadIdentity);
   return tombstone.aliases.some((alias) => aliases.has(alias)) || (leadIdentity && leadIdentity === tombstone.identityKey);

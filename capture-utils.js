@@ -24,6 +24,16 @@ export function captureLeadAliases(lead = {}) {
 export function captureLeadKey(lead = {}) {
   return captureLeadAliases(lead)[0] || 'anonymous:' + normalizeCompanyName(lead.name);
 }
+function strongPlaceAlias(lead = {}) {
+  return captureLeadAliases(lead).find((alias) => alias.startsWith('place:') && !alias.startsWith('place:maps-path:')) || '';
+}
+
+export function hasConflictingStrongPlaceId(left = {}, right = {}) {
+  const leftPlace = strongPlaceAlias(left);
+  const rightPlace = strongPlaceAlias(right);
+  return Boolean(leftPlace && rightPlace && leftPlace !== rightPlace);
+}
+
 function mergeArrays(a, b, normalizer = (value) => String(value || '').trim()) {
   return [...new Set([...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].map(normalizer).filter(Boolean))];
 }
@@ -81,7 +91,11 @@ export function mergeLeadRecords(existing = [], incoming = [], maxItems = 10000)
     if (!item || typeof item !== 'object') return;
     const normalized = normalizeLeadRecord(item);
     const aliases = captureLeadAliases(normalized);
-    const matchedKeys = [...new Set(aliases.map((alias) => aliasIndex.get(alias)).filter(Boolean))];
+    const matchedKeys = [...new Set(aliases.map((alias) => aliasIndex.get(alias)).filter(Boolean))]
+      .filter((key) => {
+        const existing = records.get(key);
+        return existing && !hasConflictingStrongPlaceId(existing, normalized);
+      });
     let primaryKey = matchedKeys[0] || aliases[0] || captureLeadKey(normalized);
     let current = records.get(primaryKey);
     if (!current) {
@@ -100,7 +114,12 @@ export function mergeLeadRecords(existing = [], incoming = [], maxItems = 10000)
         for (const alias of duplicateAliases) aliasIndex.set(alias, primaryKey);
       }
     }
-    for (const alias of captureLeadAliases(current)) aliasIndex.set(alias, primaryKey);
+    for (const alias of captureLeadAliases(current)) {
+      const existingKey = aliasIndex.get(alias);
+      const existing = existingKey ? records.get(existingKey) : null;
+      if (existing && existingKey !== primaryKey && hasConflictingStrongPlaceId(existing, current)) continue;
+      aliasIndex.set(alias, primaryKey);
+    }
   };
   for (const item of Array.isArray(existing) ? existing : []) upsert(item);
   for (const item of Array.isArray(incoming) ? incoming : []) upsert(item);

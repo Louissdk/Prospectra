@@ -90,3 +90,22 @@ test('marks only incomplete checkpoints with a saved query as resumable', async 
   assert.equal(isResumableCheckpoint({status:'partial',searchTerm:'',city:'Guarulhos'}),false);
   assert.match(captureResumeLabel({status:'interrupted',searchTerm:'clínicas',city:'Guarulhos',lastPlaceName:'Clínica X',collected:12}),/Clínica X/);
 });
+
+test('does not merge separate branches that share a name and phone but have different real Place IDs', () => {
+  const branches=mergeLeadRecords([],[
+    {id:'branch-1',name:'Rede Exemplo',placeId:'ChIJ-UNIDADE-1',phone:'+551133334444',address:'Rua A, 10',mapsUrl:'https://www.google.com/maps/place/Rede+Unidade+1',updatedAt:'2026-11-09T10:00:00Z'},
+    {id:'branch-2',name:'Rede Exemplo',placeId:'ChIJ-UNIDADE-2',phone:'+551133334444',address:'Rua B, 20',mapsUrl:'https://www.google.com/maps/place/Rede+Unidade+2',updatedAt:'2026-11-09T11:00:00Z'}
+  ]);
+  assert.equal(branches.length,2);
+  assert.deepEqual(new Set(branches.map((lead)=>lead.placeId)),new Set(['ChIJ-UNIDADE-1','ChIJ-UNIDADE-2']));
+});
+
+test('still merges a record without Place ID into its matching identified branch', () => {
+  const merged=mergeLeadRecords(
+    [{id:'identified',name:'Rede Exemplo',placeId:'ChIJ-UNIDADE-1',phone:'+551133334444',address:'Rua A, 10'}],
+    [{id:'legacy',name:'Rede Exemplo',phone:'+551133334444',address:'Rua A, 10',website:'https://rede.example'}]
+  );
+  assert.equal(merged.length,1);
+  assert.equal(merged[0].id,'identified');
+  assert.equal(merged[0].website,'https://rede.example');
+});
