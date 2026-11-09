@@ -1,16 +1,21 @@
 # Prospectra
 
-## Novidades da versão 1.2.4
+## Novidades da versão 1.2.5
 
 - Navegação sequencial refeita: cada ficha é confirmada pelo nome/rota, lida e fechada com retorno explícito aos resultados antes da próxima empresa.
 - O service worker salva os lotes em chrome.storage.local e só confirma a transmissão depois da gravação.
 - Monitoramento separado de comunicação e avanço real, com identificação da última etapa travada e cancelamento cooperativo.
 - Coleta processa uma ficha por vez, salva a cada dois leads e aguarda a lista carregar novos cartões.
 - Lista de leads paginada em blocos de 50 para reduzir o trabalho de renderização.
-- Limite máximo alinhado em 500 empresas por coleta.
+- Limite máximo alinhado em 500 empresas por coleta; valor 0 percorre os resultados disponíveis até o limite de segurança.
+- Reconhecimento de mais variações de contêineres e rotas do Google Maps, incluindo links de ficha e links com `cid`.
+- Espera pelos resultados ampliada para 30 segundos e mensagem de erro com diagnóstico de contêineres e links detectados.
+- Motivo de encerramento informado quando a lista deixa de apresentar novos cartões ou quando o limite de segurança é atingido.
+- O painel diferencia meta atingida de coleta parcial e mostra fichas analisadas, descartes e quanto faltou para a meta.
+- Limite de 500 aplicado de forma consistente no painel e no coletor.
 
 
-**Prospectra 1.2.4** é uma extensão Manifest V3 para Chrome que transforma resultados do Google Maps em uma base organizada de prospecção local.
+**Prospectra 1.2.5** é uma extensão Manifest V3 para Chrome que transforma resultados do Google Maps em uma base organizada de prospecção local.
 
 ## Novidades da versão 1.1.0
 
@@ -44,7 +49,7 @@
 6. Escolha a quantidade desejada (1 a 500) e a nota mínima.
 7. Clique em **Coletar até a quantidade escolhida**.
 
-A extensão percorre a lista de resultados progressivamente. A quantidade coletada depende dos resultados que o Google Maps realmente disponibilizar para aquela combinação de termo, cidade, filtros e sessão. Pedir 100 não significa que existem 100 resultados elegíveis. O painel informa quantos foram coletados e quantos foram descartados pelo critério de avaliação.
+A extensão percorre a lista de resultados progressivamente. A quantidade coletada depende dos resultados que o Google Maps realmente disponibilizar para aquela combinação de termo, cidade, filtros e sessão. Pedir 100 não significa que existem 100 resultados elegíveis. O valor 0 percorre os resultados que o Maps disponibilizar até o limite de segurança interno. O painel informa quantos foram coletados, quantas fichas foram analisadas, quantos foram descartados pelo critério de avaliação e o motivo da interrupção quando a meta não é atingida. O número que faltou para a meta não representa uma contagem de empresas restantes no Google Maps.
 
 ## Campos coletados
 

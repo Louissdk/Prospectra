@@ -65,18 +65,73 @@
     const style = getComputedStyle(element);
     return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
   }
+  const RESULT_FEED_SELECTORS = [
+    '[role="feed"]',
+    '[aria-label*="Results for" i]',
+    '[aria-label*="Search results" i]',
+    '[aria-label*="Resultados" i]',
+    '[aria-label*="resultado" i]',
+    '.m6QErb[aria-label]',
+    '[role="main"] .m6QErb[aria-label]',
+    '[role="main"] .m6QErb',
+    '[role="main"]'
+  ];
+
+  function isMapsResultAnchor(anchor) {
+    if (!anchor?.href) return false;
+    try {
+      const url = new URL(anchor.href, location.href);
+      if (!/(^|\.)google\./i.test(url.hostname)) return false;
+      const path = url.pathname.toLowerCase();
+      return path.includes('/maps/place/') ||
+        (path.endsWith('/maps') && url.searchParams.has('cid'));
+    } catch {
+      return false;
+    }
+  }
+
+  function getResultAnchors(root = document) {
+    return [...root.querySelectorAll('a[href*="/maps"]')].filter(isMapsResultAnchor);
+  }
+
+  function getResultDiagnostics() {
+    const candidates = new Set();
+    for (const selector of RESULT_FEED_SELECTORS) {
+      try { document.querySelectorAll(selector).forEach((element) => candidates.add(element)); } catch {}
+    }
+    const visible = [...candidates].filter(isRendered);
+    return {
+      containers: candidates.size,
+      visibleContainers: visible.length,
+      businessLinks: getResultAnchors(document).length
+    };
+  }
+
   function getFeed() {
-    const candidates = [...document.querySelectorAll(
-      '[role="feed"], div[aria-label*="Results for"], div[aria-label*="Resultados para"]'
-    )];
-    const visible = candidates.filter(isRendered);
-    return visible.find((element) => element.querySelector('a[href*="/maps/place/"]')) ||
-      visible.sort((a,b) => (b.scrollHeight-b.clientHeight)-(a.scrollHeight-a.clientHeight))[0] || null;
+    const candidates = new Set();
+    for (const selector of RESULT_FEED_SELECTORS) {
+      try { document.querySelectorAll(selector).forEach((element) => candidates.add(element)); } catch {}
+    }
+    const ranked = [...candidates].filter(isRendered).map((element) => {
+      const links = getResultAnchors(element).length;
+      const scrollable = element.scrollHeight > element.clientHeight + 80;
+      const priority = element.getAttribute('role') === 'feed' ? 4 :
+        element.matches('[aria-label*="Results for" i], [aria-label*="Search results" i], [aria-label*="Resultados" i], [aria-label*="resultado" i]') ? 3 :
+        element.matches('.m6QErb') ? 2 : 1;
+      return { element, links, scrollable, priority, scrollRoom: Math.max(0, element.scrollHeight - element.clientHeight) };
+    });
+    ranked.sort((a, b) =>
+      (b.priority - a.priority) || (Number(b.scrollable) - Number(a.scrollable)) ||
+      (b.links - a.links) || (b.scrollRoom - a.scrollRoom)
+    );
+    return ranked.find((item) => item.links > 0)?.element ||
+      ranked.find((item) => item.scrollable)?.element ||
+      ranked[0]?.element || null;
   }
 
   function getCard(anchor) {
     if (!anchor) return null;
-    const direct = anchor.closest('[role="article"], .Nv2PK');
+    const direct = anchor.closest('[role="article"], .Nv2PK, [data-result-index], [jsaction*="mouseover:pane"]');
     if (direct) return direct;
     let node = anchor;
     for (let depth = 0; depth < 8 && node?.parentElement; depth += 1) {
@@ -160,7 +215,7 @@
   function collectCards() {
     const feed = getFeed();
     if (!feed) return [];
-    const anchors = [...feed.querySelectorAll('a[href*="/maps/place/"]')];
+    const anchors = getResultAnchors(feed);
     const results = [];
     const seen = new Set();
     for (const anchor of anchors) {
@@ -237,15 +292,21 @@
   function throwIfCaptureCancelled() {
     if (activeCaptureCancelled) throw new Error('Coleta cancelada.');
   }
-  async function waitForResults(timeout = 18000) {
+  async function waitForResults(timeout = 30000) {
     const started = Date.now();
     while (Date.now() - started < timeout) {
       throwIfCaptureCancelled();
       const feed = getFeed();
       if (feed && collectCards().length) return feed;
-      await sleep(300);
+      await sleep(350);
     }
-    throw new Error('O Google Maps não disponibilizou cartões de empresas. Aguarde os resultados carregarem e tente novamente.');
+    const diagnostics = getResultDiagnostics();
+    throw new Error(
+      'Não reconheci cartões de empresas no Google Maps após 30 segundos. ' +
+      'Diagnóstico: ' + diagnostics.businessLinks + ' link(s) de ficha, ' +
+      diagnostics.visibleContainers + ' contêiner(es) visível(is). ' +
+      'Confirme que a pesquisa está aberta e que os resultados apareceram; depois tente novamente.'
+    );
   }
   async function waitForDetail(expectedName, expectedUrl = '', timeout = 6500) {
     const started = Date.now();
@@ -339,7 +400,7 @@
         }
 
         let details = { ...basic, ...context, website: '', whatsappUrl: '', emails: [], emailStatus: 'pending' };
-        const anchor = [...(getFeed()?.querySelectorAll('a[href*="/maps/place/"]') || [])]
+        const anchor = [...(getResultAnchors(getFeed() || document))]
           .find((node) => absolute(node.href) === basic.mapsUrl && isRendered(node));
 
         if (anchor) {
@@ -425,6 +486,19 @@
       stagnantRounds = foundMore || moved ? 0 : stagnantRounds + 1;
     }
 
+    if (!stopReason) {
+      const scrollLimit = unlimited ? 2000 : 180;
+      if (!unlimited && collected.length >= maxLeads) {
+        stopReason = 'Quantidade solicitada atingida.';
+      } else if (stagnantRounds >= 6) {
+        stopReason = 'O Google Maps não apresentou novos cartões após seis tentativas de rolagem.';
+      } else if (scrollRounds >= scrollLimit) {
+        stopReason = 'Limite de segurança de rolagem atingido.';
+      } else if (unlimited) {
+        stopReason = 'A lista não apresentou novos cartões.';
+      }
+    }
+
     if (sentCount < collected.length) {
       reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Salvando últimos leads' });
       await sendCaptureBatch(collected.slice(sentCount));
@@ -436,8 +510,15 @@
       name: stopReason || 'Coleta concluída'
     });
     return {
-      items: collected, sentCount, filteredOut, scanned: processed.size,
-      requested: unlimited ? 0 : maxLeads, stopReason
+      items: collected,
+      sentCount,
+      filteredOut,
+      scanned: processed.size,
+      requested: unlimited ? 0 : maxLeads,
+      remainingToTarget: unlimited ? null : Math.max(0, maxLeads - collected.length),
+      scrollRounds,
+      stagnantRounds,
+      stopReason
     };
   }
 

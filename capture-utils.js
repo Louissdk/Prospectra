@@ -52,3 +52,25 @@ export function mergeLeadRecords(existing = [], incoming = [], maxItems = 5000) 
     .sort((a, b) => (Date.parse(b.collectedAt || '') || 0) - (Date.parse(a.collectedAt || '') || 0))
     .slice(0, Math.max(1, Number(maxItems) || 5000));
 }
+
+export function summarizeCapture(stats = {}) {
+  const count = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+  };
+  const requested = count(stats.requested);
+  const collected = count(stats.collected);
+  const filteredOut = count(stats.filteredOut);
+  const scanned = count(stats.scanned);
+  const remaining = requested > 0 ? Math.max(0, requested - collected) : null;
+  return {
+    requested,
+    collected,
+    filteredOut,
+    scanned,
+    remaining,
+    partial: requested > 0 && collected < requested,
+    reachedTarget: requested === 0 || collected >= requested,
+    stopReason: String(stats.stopReason || '').trim()
+  };
+}

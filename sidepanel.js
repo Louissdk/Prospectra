@@ -1,6 +1,6 @@
 import { buildWhatsAppUrl, normalizePhone, toCsv } from './contact-utils.js';
 import { createXlsx } from './workbook.js';
-import { mergeLeadRecords } from './capture-utils.js';
+import { mergeLeadRecords, summarizeCapture } from './capture-utils.js';
 
 const $ = (selector) => document.querySelector(selector);
 const STORAGE_KEY = 'prospectra_leads_v1';
@@ -250,7 +250,7 @@ async function capture(mode) {
   const rawLimit = $('#captureLimit').value.trim();
   const parsedLimit = rawLimit === '' ? 40 : Number(rawLimit);
   const requestedLimit = Number.isFinite(parsedLimit) && parsedLimit >= 0
-    ? Math.min(5000, Math.floor(parsedLimit))
+    ? Math.min(500, Math.floor(parsedLimit))
     : 40;
   const minRating = Number($('#minimumRating').value) || 0;
   const searchTerm = $('#searchTerm').value.trim();
@@ -298,9 +298,26 @@ async function capture(mode) {
     const response = await waiter.promise;
     incoming = (response.items || []).map((item) => normalizeLead(item));
     const filteredOut = Number(response.filteredOut || 0);
+    const effectiveRequested = Number(response.requested ?? (mode === 'open' ? incoming.length : requestedLimit));
+    const summary = summarizeCapture({
+      requested: effectiveRequested,
+      collected: incoming.length,
+      filteredOut,
+      scanned: response.scanned,
+      stopReason: response.stopReason
+    });
+    const requestText = summary.requested === 0
+      ? `${incoming.length} lead(s) coletado(s) dos resultados disponíveis`
+      : `${incoming.length} de ${summary.requested} lead(s) solicitados`;
+    const diagnosticParts = [`${summary.scanned} ficha(s) analisada(s)`];
+    if (summary.filteredOut) diagnosticParts.push(`${summary.filteredOut} descartada(s) pelo filtro de nota`);
+    if (summary.partial) diagnosticParts.push(`faltaram ${summary.remaining} para atingir a meta`);
+    if (summary.partial && summary.stopReason) diagnosticParts.push(`motivo: ${summary.stopReason}`);
+    const diagnosticText = diagnosticParts.join('; ');
+
     if (!incoming.length) {
-      setProgress(0, requestedLimit, 'Nenhum lead passou pelos filtros');
-      setStatus(`Nenhum lead capturado. ${filteredOut} empresa(s) descartada(s) por avaliação abaixo do mínimo ou sem nota identificável.`, 'error');
+      setProgress(0, summary.requested, 'Nenhum lead capturado');
+      setStatus(`Nenhum lead foi salvo. ${diagnosticText || 'Não houve ficha elegível para processar'}.`, summary.partial ? 'warning' : 'error');
       return;
     }
 
@@ -308,20 +325,20 @@ async function capture(mode) {
     await saveLeads();
     const withWebsite = incoming.filter((item) => item.website).length;
     const withPhone = incoming.filter((item) => item.phone || item.whatsappUrl).length;
-    const requestedText = requestedLimit === 0 ? 'todos os resultados disponíveis' : `${requestedLimit} solicitados`;
-    const countMessage = `${incoming.length} lead(s) coletado(s) de ${requestedText}${filteredOut ? `; ${filteredOut} descartado(s) pela nota mínima` : ''}. ${withWebsite} com site e ${withPhone} com telefone/WhatsApp.`;
-    setProgress(incoming.length + filteredOut, requestedLimit,
-      requestedLimit === 0 ? `${incoming.length} leads encontrados` : `${incoming.length} de ${requestedLimit} leads coletados`);
-    setStatus(countMessage, 'success');
+    const countMessage = `${requestText}. ${diagnosticText}. ${withWebsite} com site e ${withPhone} com telefone/WhatsApp.`;
+    setProgress(incoming.length, summary.requested,
+      summary.requested === 0 ? `${incoming.length} leads encontrados` : `${incoming.length} de ${summary.requested} leads coletados`);
+    const statusType = summary.partial ? 'warning' : 'success';
+    setStatus(countMessage, statusType);
 
     if (wantsEnrich) {
       const permissionGranted = await permissionPromise;
       if (permissionGranted && withWebsite > 0) {
         setStatus(`Coleta concluída. Verificando e-mails de ${withWebsite} site(s)…`);
         const result = await enrichLeads(incoming.map((item) => leads.find((lead) => lead.mapsUrl === item.mapsUrl) || item));
-        setStatus(`${countMessage} ${result.found} empresa(s) com e-mail localizado.`, 'success');
+        setStatus(`${countMessage} ${result.found} empresa(s) com e-mail localizado.`, statusType);
       } else if (!permissionGranted) {
-        setStatus(`${countMessage} Busca de e-mails não realizada: permissão não concedida.`, 'success');
+        setStatus(`${countMessage} Busca de e-mails não realizada: permissão não concedida.`, statusType);
       }
     }
   } catch (error) {

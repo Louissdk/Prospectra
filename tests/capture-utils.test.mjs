@@ -35,3 +35,39 @@ test('enforces storage cap and keeps most recent records', () => {
   assert.equal(merged.length, 1);
   assert.equal(merged[0].name, 'Nova');
 });
+
+import { summarizeCapture } from '../capture-utils.js';
+
+test('reports partial collection and remaining target without claiming remaining Maps results', () => {
+  const summary = summarizeCapture({
+    requested: 73, collected: 26, filteredOut: 0, scanned: 26,
+    stopReason: 'O Google Maps não apresentou novos cartões.'
+  });
+  assert.equal(summary.partial, true);
+  assert.equal(summary.remaining, 47);
+  assert.equal(summary.scanned, 26);
+  assert.match(summary.stopReason, /novos cartões/);
+});
+
+test('does not count filtered results as captured leads', () => {
+  const summary = summarizeCapture({ requested: 50, collected: 30, filteredOut: 12, scanned: 42 });
+  assert.equal(summary.remaining, 20);
+  assert.equal(summary.partial, true);
+  assert.equal(summary.filteredOut, 12);
+});
+
+test('treats zero requested as all available results, without a remaining target', () => {
+  const summary = summarizeCapture({ requested: 0, collected: 81, scanned: 93 });
+  assert.equal(summary.partial, false);
+  assert.equal(summary.reachedTarget, true);
+  assert.equal(summary.remaining, null);
+});
+
+test('normalizes invalid and negative counters safely', () => {
+  const summary = summarizeCapture({ requested: '73', collected: -4, filteredOut: 'x', scanned: 5.9 });
+  assert.equal(summary.requested, 73);
+  assert.equal(summary.collected, 0);
+  assert.equal(summary.filteredOut, 0);
+  assert.equal(summary.scanned, 5);
+  assert.equal(summary.remaining, 73);
+});

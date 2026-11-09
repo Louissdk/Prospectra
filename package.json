@@ -1,10 +1,10 @@
 {
   "name": "prospectra-chrome-extension",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check service-worker.js && node --check content.js && node --check sidepanel.js && node --check workbook.js"
+    "check": "node --check service-worker.js && node --check content.js && node --check sidepanel.js && node --check workbook.js && node --check capture-utils.js"
   }
 }
