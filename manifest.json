@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Prospectra — Prospecção Inteligente",
+  "short_name": "Prospectra",
+  "version": "1.0.0",
+  "description": "Organize empresas encontradas no Google Maps e descubra sites e e-mails públicos para prospecção. Seus dados ficam no seu navegador.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "sidePanel",
+    "downloads"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Abrir Prospectra"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://google.com/maps/*",
+        "https://www.google.com/maps/*",
+        "https://www.google.com.br/maps/*",
+        "https://maps.google.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Prospectra</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <img src="icons/icon48.png" alt="" class="brand-icon">
+        <div>
+          <div class="brand-name">prospectra<span>.</span></div>
+          <div class="brand-subtitle">MAPS LEAD INTELLIGENCE</div>
+        </div>
+      </div>
+      <button id="settingsButton" class="icon-button" type="button" aria-label="Abrir configurações" title="Configurações">⚙</button>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="eyebrow"><span class="live-dot"></span> PROSPECÇÃO LOCAL</div>
+        <h1>Encontre empresas.<br><span>Descubra contatos.</span></h1>
+        <p>Transforme resultados do Google Maps em uma lista organizada de potenciais clientes.</p>
+        <div class="source-pill"><span class="source-mark">G</span><span id="tabStatus">Aguardando Google Maps</span></div>
+      </section>
+
+      <section class="capture-card" aria-labelledby="captureTitle">
+        <div class="section-heading">
+          <div>
+            <div class="eyebrow">NOVA COLETA</div>
+            <h2 id="captureTitle">Capturar empresas</h2>
+          </div>
+          <span class="step-number">01</span>
+        </div>
+        <label for="captureLimit" class="field-label">Quantidade máxima por coleta</label>
+        <select id="captureLimit" class="select-control">
+          <option value="10">10 empresas</option>
+          <option value="20" selected>20 empresas</option>
+          <option value="30">30 empresas</option>
+          <option value="40">40 empresas</option>
+        </select>
+        <label class="check-row" for="autoEnrich">
+          <input id="autoEnrich" type="checkbox" checked>
+          <span class="custom-check"></span>
+          <span><strong>Localizar e-mails automaticamente</strong><small>Consulta o site e páginas públicas de contato.</small></span>
+        </label>
+        <div class="button-stack">
+          <button id="captureButton" class="primary-button" type="button">
+            <span class="button-icon">⌕</span><span>Coletar resultados visíveis</span><span class="button-arrow">↗</span>
+          </button>
+          <button id="captureOpenButton" class="secondary-button" type="button">Capturar somente a empresa aberta</button>
+        </div>
+        <div id="progressWrap" class="progress-wrap" hidden>
+          <div class="progress-meta"><span id="progressLabel">Preparando coleta</span><strong id="progressValue">0%</strong></div>
+          <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+        </div>
+        <div id="statusMessage" class="status-message" role="status" aria-live="polite">Abra o Google Maps, faça uma pesquisa e inicie a coleta.</div>
+      </section>
+
+      <section class="metrics-grid" aria-label="Resumo dos contatos">
+        <article class="metric-card">
+          <span class="metric-label">EMPRESAS</span>
+          <strong id="totalCount">0</strong>
+          <span class="metric-foot">na sua lista</span>
+        </article>
+        <article class="metric-card">
+          <span class="metric-label">COM SITE</span>
+          <strong id="websiteCount">0</strong>
+          <span class="metric-foot">presença online</span>
+        </article>
+        <article class="metric-card metric-highlight">
+          <span class="metric-label">COM E-MAIL</span>
+          <strong id="emailCount">0</strong>
+          <span class="metric-foot">contato localizado</span>
+        </article>
+      </section>
+
+      <section class="leads-section">
+        <div class="list-heading">
+          <div>
+            <div class="eyebrow">BASE DE PROSPECÇÃO</div>
+            <h2>Seus leads <span id="listCount" class="count-chip">0</span></h2>
+          </div>
+          <button id="refreshButton" class="icon-button small" type="button" title="Atualizar lista" aria-label="Atualizar lista">↻</button>
+        </div>
+        <div class="toolbar">
+          <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Buscar empresa, cidade, e-mail..."></label>
+          <select id="filterSelect" class="filter-select" aria-label="Filtrar empresas">
+            <option value="all">Todas</option>
+            <option value="website">Com site</option>
+            <option value="email">Com e-mail</option>
+            <option value="noemail">Sem e-mail localizado</option>
+          </select>
+        </div>
+        <div id="leadList" class="lead-list">
+          <div class="empty-state">
+            <div class="empty-icon">⌖</div>
+            <strong>Sua lista começa aqui</strong>
+            <span>As empresas capturadas aparecerão neste painel.</span>
+          </div>
+        </div>
+        <button id="enrichButton" class="enrich-button" type="button" disabled>✧ Buscar e-mails dos leads pendentes</button>
+        <div class="export-row">
+          <button id="exportCsvButton" class="export-button" type="button" disabled><span>↓</span> Exportar CSV</button>
+          <button id="exportJsonButton" class="export-button export-secondary" type="button" disabled>JSON</button>
+        </div>
+      </section>
+
+      <section id="settingsPanel" class="settings-panel" hidden>
+        <div class="list-heading"><div><div class="eyebrow">PREFERÊNCIAS</div><h2>Configurações</h2></div><button id="closeSettingsButton" class="icon-button small" type="button" aria-label="Fechar configurações">×</button></div>
+        <div class="setting-row"><div><strong>Dados locais</strong><small>Os leads são armazenados neste perfil do Chrome.</small></div><span class="setting-state">ATIVO</span></div>
+        <div class="setting-row"><div><strong>Remover duplicados</strong><small>Empresas com o mesmo link do Maps são atualizadas, não repetidas.</small></div><span class="setting-state">ATIVO</span></div>
+        <div class="setting-row"><div><strong>Busca de e-mails</strong><small>Até três páginas públicas por site, respeitando timeout e limites.</small></div><span class="setting-state">ATIVO</span></div>
+        <button id="clearButton" class="danger-button" type="button">Apagar todos os leads salvos</button>
+        <p class="privacy-note">A extensão não envia sua lista para um servidor próprio. As consultas de enriquecimento são feitas diretamente aos sites públicos das empresas.</p>
+      </section>
+    </main>
+    <footer class="footer"><span>PROSPECTRA 1.0.0</span><span>FEITO PARA PROSPECÇÃO RESPONSÁVEL</span></footer>
+  </div>
+  <script type="module" src="sidepanel.js"></script>
+</body>
+</html>
