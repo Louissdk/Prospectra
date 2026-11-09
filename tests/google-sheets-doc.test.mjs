@@ -10,13 +10,13 @@ test('Google Sheets template exports exact coordinates and protects against form
   assert.match(docs,/lead\.latitude \?\? ''/);
   assert.match(docs,/lead\.longitude \?\? ''/);
   assert.match(docs,/row\.map\(safeCell\)/);
-  assert.ok(docs.includes(String.raw\`return /^[\\s]*[=+\\-@]/.test(value)\`));
+  assert.ok(docs.includes('return /^[\\\\s]*[=+\\\\-@]/.test(value)'));
 });
 
 test('Apps Script expands narrow sheets and neutralizes formula-like strings', () => {
   assert.ok(docs.includes('sheet.getMaxColumns() < headers.length'));
   assert.ok(docs.includes('sheet.insertColumnsAfter(sheet.getMaxColumns()'));
-  assert.ok(docs.includes(String.raw\`return /^[\\s]*[=+\\-@]/.test(value)\`));
+  assert.ok(docs.includes('return /^[\\\\s]*[=+\\\\-@]/.test(value)'));
 });
 
 test('Google Sheets integration receives deletion tombstones and removes them by identity', async () => {
