@@ -88,9 +88,12 @@ A sincronização lê a nuvem em páginas de até 1.000 registros, com limite co
 - Testes unitários de normalização, CNPJ, Place ID, deduplicação, score e exportações.
 - Testes simulados com jsdom para fluxo de abertura, leitura, retorno e tela de limitação.
 - Testes de banco usam fake-indexeddb para simular migração, gravação em lote, checkpoint independente e limpeza do IndexedDB no Node.js.
-- GitHub Actions executa verificação sintática, testes e validação do Manifest V3.
+- GitHub Actions executa verificação sintática, 111 testes unitários/simulados, validação do Manifest V3 e captura do content script em Chromium com fixture.
+- Um PostgreSQL 17 descartável executa o schema duas vezes, testa migração de tabela legada, grants, isolamento RLS, INSERT/UPDATE/DELETE e bloqueio entre usuários.
+- PostgREST 16.5 recebe JWTs de teste e valida a Data API por HTTP, incluindo leitura, upsert, atualização, exclusão e isolamento.
+- O ZIP final é extraído em pasta vazia, carregado no Chrome com perfil temporário e o painel é aberto/navegado pelas cinco abas.
 
-Os testes usam DOM simulado e não garantem que os seletores continuem funcionando em todas as versões reais do Google Maps.
+Essas automações validam o artefato e os fluxos reproduzíveis, mas não usam uma sessão viva do Google Maps nem uma conta Supabase/Google do usuário. Os seletores do Maps e as integrações externas ainda precisam de homologação manual nos projetos reais escolhidos.
 
 ## Cobertura geográfica
 

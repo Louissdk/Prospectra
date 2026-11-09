@@ -16,6 +16,12 @@ Todas as alterações importantes do Prospectra são registradas neste arquivo.
 - Reconciliação de tombstones indexada por Place ID e aliases, mantendo o limite documentado de 10.000 leads + 10.000 exclusões sem varredura quadrática.
 - Identificadores gerados para tombstones preservam a identidade completa e evitam colisões por truncamento.
 - Apps Script valida ação, token e estrutura do payload antes de adquirir o bloqueio compartilhado; integração protegida contra chamadas inválidas que monopolizem o lock.
+- Reconciliação de DNC respeita valores explícitos verdadeiros/falsos e preserva o estado CRM quando uma captura do Maps não traz esse campo.
+- Reconciliação de tombstones usa índices por Place ID e aliases para evitar varredura quadrática no limite de 10.000 leads + 10.000 exclusões.
+- IDs determinísticos de tombstones preservam a chave de identidade completa para evitar colisões por truncamento.
+- Schema Supabase revoga privilégios herdados de PUBLIC/anon, usa a expressão otimizada auth.uid() nas políticas RLS e concede acesso somente para authenticated.
+- CI adiciona banco PostgreSQL 17, testes de migração/RLS e PostgREST 16.5 com JWTs sintéticos.
+- CI baixa o pacote gerado e instala a extensão em Chrome com perfil temporário, abrindo o painel e navegando pelas cinco abas.
 
 
 
