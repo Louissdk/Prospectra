@@ -112,3 +112,12 @@ A publicação utiliza GitHub CLI autenticado. Na pasta extraída, execute o arq
 ```
 
 O script usa `$PSScriptRoot`, portanto deve ser executado como arquivo `.ps1`, não colado linha por linha no terminal.
+
+
+## 1.2.1 — Correção de coleta e BFCache
+
+- A captura inicia com confirmação imediata e recebe resultados em lotes curtos, sem manter aberta uma resposta de mensagem durante a navegação entre fichas do Google Maps.
+- Progresso e lotes são correlacionados por identificador de tarefa.
+- Corrigido o escopo da variável `opened` ao abrir fichas.
+- Quantidade `0` percorre os resultados disponíveis até a lista deixar de apresentar novos cartões; não é garantia de cobrir todo o índice do Google Maps.
+- Indicador adicional para empresas com telefone ou WhatsApp.

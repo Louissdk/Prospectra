@@ -67,7 +67,7 @@ h2 { margin: 5px 0 0; font-size: 17px; letter-spacing: -.45px; }
 .progress-meta strong { color: #dbe8fb; }
 .progress-track { height: 5px; border-radius: 8px; background: #0b1322; overflow: hidden; }
 .progress-bar { height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #5a9bf1, #74dfd0); transition: width .18s ease; }
-.metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 23px; }
+.metrics-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0 23px; }
 .metric-card { padding: 12px 11px 10px; min-width: 0; border: 1px solid var(--stroke); border-radius: 12px; background: rgba(17,26,46,.77); }
 .metric-label { display: block; color: var(--muted-2); font-size: 8px; font-weight: 800; letter-spacing: 1px; white-space: nowrap; }
 .metric-card strong { display: block; font-size: 24px; letter-spacing: -1px; margin-top: 6px; }
@@ -126,6 +126,7 @@ h2 { margin: 5px 0 0; font-size: 17px; letter-spacing: -.45px; }
 .danger-button { width: 100%; margin-top: 13px; height: 34px; border: 1px solid rgba(255,127,138,.25); border-radius: 8px; background: rgba(255,127,138,.07); color: #ff9da5; font-size: 9px; font-weight: 700; }
 .privacy-note { margin: 10px 0 0; color: var(--muted-2); font-size: 8px; line-height: 1.5; }
 .footer { display: flex; justify-content: space-between; gap: 8px; color: #4e5e79; font-size: 7px; font-weight: 800; letter-spacing: .8px; padding: 17px 1px 2px; }
+@media (max-width: 430px) { .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 350px) { .app-shell { padding-inline: 11px; } .capture-card { padding: 13px; } .metrics-grid { gap: 5px; } .metric-card { padding-inline: 8px; } .toolbar { grid-template-columns: minmax(0,1fr) 93px; } }
 
 /* Prospectra 1.1.0: busca geográfica, filtros e exportação Excel */
@@ -140,3 +141,6 @@ h2 { margin: 5px 0 0; font-size: 17px; letter-spacing: -.45px; }
 .rating { background: rgba(240,196,119,.13); color: #f0ce89; }
 .export-row .export-button { min-width: 0; padding-inline: 5px; font-size: 9px; }
 @media (max-width: 350px) { .capture-options-grid { grid-template-columns: 1fr; gap: 2px; } .field-hint { min-height: 0; } .export-row { grid-template-columns: 1fr 1fr; } .export-row .export-button:first-child { grid-column: 1 / -1; } }
+
+.progress-bar.indeterminate { width: 100%; background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 200% 100%; animation: prospectra-progress 1.4s linear infinite; }
+@keyframes prospectra-progress { from { background-position: 100% 0; } to { background-position: -100% 0; } }

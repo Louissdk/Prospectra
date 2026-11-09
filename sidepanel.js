@@ -6,6 +6,7 @@ const STORAGE_KEY = 'prospectra_leads_v1';
 const MAX_SAVED = 5000;
 let leads = [];
 let busy = false;
+let activeCaptureTaskId = null;
 
 function normalizeUrl(value) {
   try {
@@ -74,12 +75,20 @@ function setBusy(value) {
   $('#captureOpenButton').disabled = value;
   $('#searchMapsButton').disabled = value;
   $('#enrichButton').disabled = value || !leads.some((lead) => lead.website && !lead.emails.length);
-  $('#captureButton').querySelector('span:nth-child(2)').textContent = value ? 'Coleta em andamento…' : 'Coletar até a quantidade escolhida';
+  $('#captureButton').querySelector('span:nth-child(2)').textContent = value ? 'Coleta em andamento…' : 'Coletar leads';
 }
 
 function setProgress(done, total, label = 'Coletando empresas') {
   const wrap = $('#progressWrap');
   wrap.hidden = false;
+  if (Number(total) === 0) {
+    $('#progressBar').style.width = '100%';
+    $('#progressBar').classList.add('indeterminate');
+    $('#progressValue').textContent = Number(done || 0).toLocaleString('pt-BR');
+    $('#progressLabel').textContent = `${label} · sem limite fixo`;
+    return;
+  }
+  $('#progressBar').classList.remove('indeterminate');
   const percent = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   $('#progressBar').style.width = `${percent}%`;
   $('#progressValue').textContent = `${percent}%`;
@@ -182,46 +191,115 @@ async function enrichLeads(items) {
   return { checked, found };
 }
 
+
+function createCaptureWaiter(taskId) {
+  let resolvePromise;
+  let rejectPromise;
+  let persistence = Promise.resolve();
+  const items = [];
+  const promise = new Promise((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+
+  const listener = (message) => {
+    if (!message || message.taskId !== taskId) return;
+
+    if (message.type === 'PROSPECTRA_CAPTURE_BATCH') {
+      const batch = Array.isArray(message.items) ? message.items : [];
+      items.push(...batch);
+      persistence = persistence.then(async () => {
+        mergeLeads(batch.map((item) => normalizeLead({
+          ...item,
+          collectedAt: new Date().toISOString()
+        })));
+        await saveLeads();
+      }).catch((error) => {
+        console.error('[Prospectra] Não foi possível salvar um lote durante a coleta:', error);
+      });
+      return;
+    }
+
+    if (message.type === 'PROSPECTRA_CAPTURE_COMPLETE') {
+      chrome.runtime.onMessage.removeListener(listener);
+      persistence.then(() => {
+        if (message.ok) resolvePromise({ ...message, items });
+        else rejectPromise(new Error(message.error || 'Falha na coleta.'));
+      });
+    }
+  };
+
+  chrome.runtime.onMessage.addListener(listener);
+  return { promise, cancel: () => chrome.runtime.onMessage.removeListener(listener) };
+}
+
 async function capture(mode) {
   if (busy) return;
   const wantsEnrich = $('#autoEnrich').checked;
-  const requestedLimit = Math.max(1, Math.min(500, Math.floor(Number($('#captureLimit').value) || 40)));
+  const rawLimit = $('#captureLimit').value.trim();
+  const parsedLimit = rawLimit === '' ? 40 : Number(rawLimit);
+  const requestedLimit = Number.isFinite(parsedLimit) && parsedLimit >= 0
+    ? Math.min(5000, Math.floor(parsedLimit))
+    : 40;
   const minRating = Number($('#minimumRating').value) || 0;
   const searchTerm = $('#searchTerm').value.trim();
   const city = $('#searchCity').value.trim();
   const permissionPromise = wantsEnrich
     ? chrome.permissions.request({ origins: ['http://*/*', 'https://*/*'] })
     : Promise.resolve(false);
+  let waiter = null;
+  let incoming = [];
+
   setBusy(true);
   $('#progressWrap').hidden = false;
   setProgress(0, requestedLimit, 'Conectando ao Google Maps');
   try {
     const tab = await getActiveMapsTab();
-    setStatus(mode === 'open' ? 'Lendo a ficha aberta…' : `Coletando até ${requestedLimit} empresas${minRating ? ` com nota ${minRating.toLocaleString('pt-BR')}+` : ''}…`);
-    const response = await chrome.tabs.sendMessage(tab.id, {
-      type: 'PROSPECTRA_CAPTURE',
+    const taskId = crypto.randomUUID();
+    activeCaptureTaskId = taskId;
+    waiter = createCaptureWaiter(taskId);
+
+    const limitLabel = requestedLimit === 0
+      ? 'todos os resultados disponíveis'
+      : `${requestedLimit.toLocaleString('pt-BR')} empresas`;
+    setStatus(mode === 'open' ? 'Lendo a ficha aberta…' :
+      `Coletando ${limitLabel}${minRating ? ` com nota ${minRating.toLocaleString('pt-BR')}+` : ''}…`);
+
+    // A aba confirma o início imediatamente. Os resultados chegam em lotes,
+    // sem depender de uma única resposta pendente durante a navegação no Maps.
+    const acknowledgement = await chrome.tabs.sendMessage(tab.id, {
+      type: 'PROSPECTRA_CAPTURE_START',
+      taskId,
       mode,
       limit: requestedLimit,
       minRating,
       searchTerm,
       city
     });
-    if (!response?.ok) throw new Error(response?.error || 'A coleta não retornou resultados.');
-    const incoming = (response.items || []).map((item) => normalizeLead({ ...item, collectedAt: new Date().toISOString() }));
-    if (incoming.length) {
-      mergeLeads(incoming);
-      await saveLeads();
+    if (!acknowledgement?.ok) {
+      waiter.cancel();
+      throw new Error(acknowledgement?.error || 'Não foi possível iniciar a coleta na aba do Maps.');
     }
+
+    const response = await waiter.promise;
+    incoming = (response.items || []).map((item) => normalizeLead(item));
     const filteredOut = Number(response.filteredOut || 0);
     if (!incoming.length) {
       setProgress(0, requestedLimit, 'Nenhum lead passou pelos filtros');
       setStatus(`Nenhum lead capturado. ${filteredOut} empresa(s) descartada(s) por avaliação abaixo do mínimo ou sem nota identificável.`, 'error');
       return;
     }
-    setProgress(incoming.length, requestedLimit, `${incoming.length} de ${requestedLimit} leads coletados`);
+
+    mergeLeads(incoming);
+    await saveLeads();
     const withWebsite = incoming.filter((item) => item.website).length;
-    const countMessage = `${incoming.length} lead(s) coletado(s) de ${requestedLimit} solicitados${filteredOut ? `; ${filteredOut} descartado(s) pela nota mínima` : ''}. ${withWebsite} com site.`;
+    const withPhone = incoming.filter((item) => item.phone || item.whatsappUrl).length;
+    const requestedText = requestedLimit === 0 ? 'todos os resultados disponíveis' : `${requestedLimit} solicitados`;
+    const countMessage = `${incoming.length} lead(s) coletado(s) de ${requestedText}${filteredOut ? `; ${filteredOut} descartado(s) pela nota mínima` : ''}. ${withWebsite} com site e ${withPhone} com telefone/WhatsApp.`;
+    setProgress(incoming.length + filteredOut, requestedLimit,
+      requestedLimit === 0 ? `${incoming.length} leads encontrados` : `${incoming.length} de ${requestedLimit} leads coletados`);
     setStatus(countMessage, 'success');
+
     if (wantsEnrich) {
       const permissionGranted = await permissionPromise;
       if (permissionGranted && withWebsite > 0) {
@@ -236,10 +314,11 @@ async function capture(mode) {
     setStatus(error?.message || 'Não foi possível concluir a coleta.', 'error');
     $('#progressWrap').hidden = true;
   } finally {
+    waiter?.cancel();
+    activeCaptureTaskId = null;
     setBusy(false);
   }
 }
-
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
@@ -290,6 +369,7 @@ function render() {
   $('#totalCount').textContent = total.toLocaleString('pt-BR');
   $('#websiteCount').textContent = websites.toLocaleString('pt-BR');
   $('#emailCount').textContent = emails.toLocaleString('pt-BR');
+  $('#phoneCount').textContent = leads.filter((lead) => lead.phone || lead.whatsappUrl).length.toLocaleString('pt-BR');
   $('#listCount').textContent = total.toLocaleString('pt-BR');
   $('#exportXlsxButton').disabled = !total;
   $('#exportCsvButton').disabled = !total;
@@ -397,8 +477,8 @@ $('#clearButton').addEventListener('click', async () => {
 });
 
 chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type === 'PROSPECTRA_PROGRESS') {
-    setProgress(message.done || 0, message.total || 1, message.name ? `Processando: ${message.name}` : 'Lendo fichas do Maps');
+  if (message?.type === 'PROSPECTRA_PROGRESS' && message.taskId === activeCaptureTaskId) {
+    setProgress(message.done || 0, Number(message.total ?? 1), message.name ? `Processando: ${message.name}` : 'Lendo fichas do Maps');
   }
 });
 

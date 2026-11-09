@@ -3,6 +3,16 @@
   window.__prospectraContentLoaded = true;
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  let activeCaptureTaskId = null;
+
+  function reportProgress(payload) {
+    if (!activeCaptureTaskId) return;
+    chrome.runtime.sendMessage({
+      ...payload,
+      type: 'PROSPECTRA_PROGRESS',
+      taskId: activeCaptureTaskId
+    }).catch(() => {});
+  }
   const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
   const absolute = (value) => {
     try { return new URL(value, location.href).href; } catch { return ''; };
@@ -213,7 +223,12 @@
     let feed = getFeed();
     if (!feed) throw new Error('Não encontrei a lista de resultados. Aguarde o Google Maps terminar a pesquisa.');
 
-    const maxLeads = Math.max(1, Math.min(Number(limit) || 40, 500));
+    const parsedLimit = Number(limit);
+    const unlimited = Number.isFinite(parsedLimit) && parsedLimit === 0;
+    const maxLeads = unlimited ? Infinity : Math.max(1, Math.min(
+      Number.isFinite(parsedLimit) ? Math.floor(parsedLimit) : 40,
+      5000
+    ));
     const threshold = Math.max(0, Math.min(Number(minRating) || 0, 5));
     const collected = [];
     const processed = new Set();
@@ -222,7 +237,7 @@
     let scrollRounds = 0;
 
     // Processa cada lote visível e avança a lista para forçar o carregamento progressivo do Maps.
-    while (collected.length < maxLeads && scrollRounds < 140 && stagnantRounds < 4) {
+    while ((unlimited || collected.length < maxLeads) && scrollRounds < (unlimited ? 2000 : 140) && stagnantRounds < 4) {
       feed = getFeed();
       if (!feed) break;
       const cards = collectCards();
@@ -238,21 +253,22 @@
         const rating = Number(String(basic.rating || '').replace(',', '.'));
         if (threshold > 0 && (!basic.rating || !Number.isFinite(rating) || rating < threshold)) {
           filteredOut += 1;
-          chrome.runtime.sendMessage({ type: 'PROSPECTRA_PROGRESS', done: collected.length + filteredOut, total: maxLeads, name: `Descartado por nota: ${basic.name}` }).catch(() => {});
+          reportProgress({ done: collected.length + filteredOut, total: maxLeads, name: `Descartado por nota: ${basic.name}` });
           continue;
         }
 
-        chrome.runtime.sendMessage({ type: 'PROSPECTRA_PROGRESS', done: collected.length + filteredOut, total: maxLeads, name: basic.name }).catch(() => {});
+        reportProgress({ done: collected.length + filteredOut, total: maxLeads, name: basic.name });
         let details = { ...basic, ...context, website: '', whatsappUrl: '', emails: [], emailStatus: 'pending' };
         const anchor = [...(getFeed()?.querySelectorAll('a[href*="/maps/place/"]') || [])]
           .find((node) => absolute(node.href) === basic.mapsUrl);
         if (anchor) {
           const previousUrl = location.href;
+          let opened = false;
           try {
             anchor.scrollIntoView({ block: 'center', behavior: 'auto' });
             await sleep(180);
             anchor.click();
-            const opened = await waitForDetail(previousUrl, basic.name);
+            opened = await waitForDetail(previousUrl, basic.name);
             if (opened) details = extractDetail(basic, context);
             else details.captureNote = 'A ficha não abriu a tempo; dados do cartão foram preservados.';
           } catch (error) {
@@ -287,23 +303,63 @@
       else stagnantRounds += 1;
     }
 
-    chrome.runtime.sendMessage({ type: 'PROSPECTRA_PROGRESS', done: collected.length + filteredOut, total: Math.max(1, Math.min(maxLeads, collected.length + filteredOut)), name: 'Coleta concluída' }).catch(() => {});
-    return { items: collected, filteredOut, scanned: processed.size, requested: maxLeads };
+    reportProgress({ done: collected.length + filteredOut, total: Number.isFinite(maxLeads) ? maxLeads : 0, name: 'Coleta concluída' });
+    return { items: collected, filteredOut, scanned: processed.size, requested: unlimited ? 0 : maxLeads };
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type === 'PROSPECTRA_CAPTURE') {
+    if (message?.type === 'PROSPECTRA_CAPTURE_START') {
+      if (activeCaptureTaskId) {
+        sendResponse({ ok: false, error: 'Já existe uma coleta em andamento nesta aba.' });
+        return false;
+      }
+
+      const taskId = String(message.taskId || crypto.randomUUID());
+      activeCaptureTaskId = taskId;
       const context = {
         searchTerm: clean(message.searchTerm || ''),
         city: clean(message.city || '')
       };
-      const task = message.mode === 'open'
-        ? captureOpenBusiness(context)
-        : captureVisibleBusinesses(message.limit, message.minRating, context);
-      task.then((result) => sendResponse({ ok: true, ...result }))
-        .catch((error) => sendResponse({ ok: false, error: error?.message || 'Falha na coleta.' }));
-      return true;
+
+      // Resposta imediata: não manter um canal aberto enquanto o Maps navega
+      // entre fichas ou coloca o documento no back/forward cache.
+      sendResponse({ ok: true, started: true, taskId });
+
+      Promise.resolve().then(async () => {
+        if (message.mode === 'open') return captureOpenBusiness(context);
+        return captureVisibleBusinesses(message.limit, message.minRating, context);
+      }).then(async (result) => {
+        const items = Array.isArray(result.items) ? result.items : [];
+        for (let offset = 0; offset < items.length; offset += 20) {
+          await chrome.runtime.sendMessage({
+            type: 'PROSPECTRA_CAPTURE_BATCH',
+            taskId,
+            items: items.slice(offset, offset + 20)
+          });
+        }
+        const { items: _items, ...summary } = result;
+        await chrome.runtime.sendMessage({
+          type: 'PROSPECTRA_CAPTURE_COMPLETE',
+          taskId,
+          ok: true,
+          ...summary
+        });
+      }).catch(async (error) => {
+        try {
+          await chrome.runtime.sendMessage({
+            type: 'PROSPECTRA_CAPTURE_COMPLETE',
+            taskId,
+            ok: false,
+            error: error?.message || 'Falha na coleta.'
+          });
+        } catch {}
+      }).finally(() => {
+        if (activeCaptureTaskId === taskId) activeCaptureTaskId = null;
+      });
+
+      return false;
     }
+
     if (message?.type === 'PROSPECTRA_PING') {
       sendResponse({ ok: true, isMaps: validMapsTab() });
       return false;
