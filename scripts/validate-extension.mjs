@@ -49,8 +49,11 @@ for (const [size, file] of Object.entries(manifest.icons || {})) {
     }
   }
 }
-if (!(await exists(manifest.action?.default_icon || 'icons/icon48.png')) && manifest.action?.default_icon) {
-  errors.push('Ícone padrão da ação não encontrado.');
+const actionIconFiles = typeof manifest.action?.default_icon === 'string'
+  ? [manifest.action.default_icon]
+  : Object.values(manifest.action?.default_icon || {});
+for (const file of actionIconFiles) {
+  if (!(await exists(file))) errors.push('Ícone padrão da ação não encontrado: ' + file);
 }
 if (!(await exists(manifest.side_panel.default_path))) errors.push('Arquivo do painel lateral não encontrado.');
 if (!(await exists(manifest.background.service_worker))) errors.push('Service worker referenciado no manifest não encontrado.');
