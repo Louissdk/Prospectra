@@ -10,7 +10,7 @@ import { loadAppState, saveAppState, createBackup, validateBackup, loadCaptureCh
 import { normalizeSupabaseProjectUrl, parsePostgrestTotal, buildRangeHeader, isGoogleMapsUrl } from './cloud-utils.js';
 import { enrichmentPermissionOrigins } from './permission-utils.js';
 import { classifyQueueOutcome, summarizeQueueOutcomes } from './queue-utils.js';
-import { MAX_DELETION_TOMBSTONES, normalizeDeletionTombstone, mergeDeletionTombstones, applyDeletionTombstones, pruneSupersededTombstones } from './sync-utils.js';
+import { MAX_DELETION_TOMBSTONES, normalizeDeletionTombstone, mergeDeletionTombstones, applyDeletionTombstones, pruneSupersededTombstones, buildSupabaseSyncRows } from './sync-utils.js';
 
 const $ = (selector) => document.querySelector(selector);
 const PAGE_SIZE = 50;
@@ -1125,27 +1125,7 @@ async function syncSupabase() {
     state.deletedLeadKeys=pruneSupersededTombstones(leads,tombstones);
     await persist();
 
-    const body=[
-      ...leads.map((lead)=>({
-        id:lead.id,
-        identity_key:lead.identityKey||identityKeyForLead(lead),
-        user_id:userId,
-        payload:lead,
-        updated_at:lead.updatedAt||new Date().toISOString(),
-        deleted_at:null
-      })),
-      ...state.deletedLeadKeys.map((item)=>({
-        id:item.id||('deleted-'+item.identityKey.slice(0,100)),
-        identity_key:item.identityKey,
-        user_id:userId,
-        payload:{deleted:true,identityKey:item.identityKey,aliases:item.aliases,deletedAt:item.deletedAt},
-        updated_at:item.deletedAt,
-        deleted_at:item.deletedAt
-      }))
-    ];
-    if (body.length>MAX_CLOUD_RECORDS) {
-      throw new Error('A base excede o limite de '+MAX_CLOUD_RECORDS.toLocaleString('pt-BR')+' registros sincronizáveis.');
-    }
+    const body=buildSupabaseSyncRows(leads,state.deletedLeadKeys,userId);
     for (let offset=0;offset<body.length;offset+=200) {
       const batch=body.slice(offset,offset+200);
       const response=await fetch(url+'/rest/v1/prospectra_leads?on_conflict=user_id,identity_key',{

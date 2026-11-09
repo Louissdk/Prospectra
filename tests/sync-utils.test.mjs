@@ -1,0 +1,48 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  MAX_DELETION_TOMBSTONES, normalizeDeletionTombstone,
+  mergeDeletionTombstones, applyDeletionTombstones,
+  pruneSupersededTombstones, buildSupabaseSyncRows
+} from '../sync-utils.js';
+
+test('normalizes and merges deletion tombstones by identity and newest deletion time', () => {
+  const merged = mergeDeletionTombstones(
+    [{id:'old',identityKey:'place:1',aliases:['place:1','phone:111'],deletedAt:'2026-11-01T10:00:00Z'}],
+    [{id:'new',identity_key:'place:1',aliases:['place:1','phone:222'],deleted_at:'2026-11-02T10:00:00Z'}]
+  );
+  assert.equal(merged.length,1);
+  assert.equal(merged[0].id,'new');
+  assert.equal(merged[0].deletedAt,'2026-11-02T10:00:00.000Z');
+  assert.deepEqual(new Set(merged[0].aliases),new Set(['place:1','phone:111','phone:222']));
+});
+
+test('tombstones remove stale remote leads but allow a genuinely newer re-created lead', () => {
+  const tombstone=normalizeDeletionTombstone({
+    id:'deleted-1',identityKey:'place:1',aliases:['place:1','phone:111'],
+    deletedAt:'2026-11-05T10:00:00Z'
+  });
+  const stale={id:'lead-old',identityKey:'place:1',placeId:'ChIJ-1',phone:'111',updatedAt:'2026-11-04T10:00:00Z'};
+  const recreated={...stale,id:'lead-new',updatedAt:'2026-11-06T10:00:00Z'};
+  assert.deepEqual(applyDeletionTombstones([stale,recreated],[tombstone]),[recreated]);
+  assert.deepEqual(pruneSupersededTombstones([recreated],[tombstone]),[]);
+});
+
+test('builds PostgREST rows for active leads and soft deletions', () => {
+  const rows=buildSupabaseSyncRows(
+    [{id:'lead-1',identityKey:'place:1',name:'Empresa',updatedAt:'2026-11-09T11:00:00Z'}],
+    [{id:'lead-2',identityKey:'place:2',aliases:['place:2'],deletedAt:'2026-11-09T12:00:00Z'}],
+    'user-123'
+  );
+  assert.equal(rows.length,2);
+  assert.equal(rows[0].deleted_at,null);
+  assert.equal(rows[1].deleted_at,'2026-11-09T12:00:00.000Z');
+  assert.equal(rows[1].payload.deleted,true);
+  assert.equal(rows[1].user_id,'user-123');
+});
+
+test('rejects invalid tombstones and caps the tombstone history', () => {
+  assert.equal(normalizeDeletionTombstone({identityKey:'x',deletedAt:'invalid'}),null);
+  assert.equal(mergeDeletionTombstones([{identityKey:'x',deletedAt:'2026-11-09T10:00:00Z'}]).length,1);
+  assert.equal(MAX_DELETION_TOMBSTONES,10000);
+});

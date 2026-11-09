@@ -65,3 +65,29 @@ export function pruneSupersededTombstones(leads = [], tombstones = []) {
     return matchesTombstone(lead, tombstone) && updatedAt > Date.parse(tombstone.deletedAt);
   }));
 }
+
+export function buildSupabaseSyncRows(leads = [], tombstones = [], userId = '') {
+  const ownerId = String(userId || '').trim();
+  if (!ownerId) throw new Error('Usuário Supabase não identificado.');
+  const active = (Array.isArray(leads) ? leads : []).map((lead) => ({
+    id: String(lead.id || ''),
+    identity_key: String(lead.identityKey || ''),
+    user_id: ownerId,
+    payload: lead,
+    updated_at: lead.updatedAt || new Date().toISOString(),
+    deleted_at: null
+  })).filter((row) => row.id && row.identity_key);
+  const deleted = mergeDeletionTombstones(tombstones).map((item) => ({
+    id: item.id || ('deleted-' + encodeURIComponent(item.identityKey).slice(0, 120)),
+    identity_key: item.identityKey,
+    user_id: ownerId,
+    payload: { deleted: true, identityKey: item.identityKey, aliases: item.aliases, deletedAt: item.deletedAt },
+    updated_at: item.deletedAt,
+    deleted_at: item.deletedAt
+  }));
+  if (active.length > 10000 || deleted.length > MAX_DELETION_TOMBSTONES ||
+      active.length + deleted.length > 20000) {
+    throw new Error('A base excede o limite combinado de 20.000 registros sincronizáveis.');
+  }
+  return [...active, ...deleted];
+}
