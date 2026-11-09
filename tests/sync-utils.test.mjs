@@ -9,7 +9,7 @@ import {
 test('normalizes and merges deletion tombstones by identity and newest deletion time', () => {
   const merged = mergeDeletionTombstones(
     [{id:'old',identityKey:'place:ChIJ-1',aliases:['place:ChIJ-1','phone:111'],deletedAt:'2026-11-01T10:00:00Z'}],
-    [{id:'new',identity_key:'place:1',aliases:['place:1','phone:222'],deleted_at:'2026-11-02T10:00:00Z'}]
+    [{id:'new',identity_key:'place:ChIJ-1',aliases:['place:1','phone:222'],deleted_at:'2026-11-02T10:00:00Z'}]
   );
   assert.equal(merged.length,1);
   assert.equal(merged[0].id,'new');

@@ -22,7 +22,7 @@ test('reads all Supabase pages and stops at the exact reported total', async () 
       calls.push({url,range:options.headers.Range});
       const start=Number(options.headers.Range.split('-')[0]);
       const page=records.slice(start,start+1000);
-      return jsonResponse(page,Math.min(start+999,records.length-1)+'/'+records.length);
+      return jsonResponse(page,start+'-'+Math.min(start+999,records.length-1)+'/'+records.length);
     }
   });
   assert.equal(result.rows.length,2450);
