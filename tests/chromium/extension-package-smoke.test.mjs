@@ -43,7 +43,7 @@ if(!chromePath || !extensionDir) {
           version:manifest.version,
           manifestVersion:manifest.manifest_version,
           title:document.title,
-          navTabs:Array.from(document.querySelectorAll('[data-view-target]')).map((node)=>node.dataset.viewTarget)
+          navTabs:Array.from(document.querySelectorAll('nav.main-nav [data-view-target]')).map((node)=>node.dataset.viewTarget)
         };
       });
       assert.equal(app.version,'2.0.0');
