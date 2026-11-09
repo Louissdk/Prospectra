@@ -275,6 +275,17 @@
     return '';
   }
 
+  function extractPlaceCoordinatesFromMapsUrl(value = '') {
+    const raw = String(value || '').replace(/%21/gi, '!');
+    const latitude = raw.match(/!3d(-?\d+(?:\.\d+)?)/i);
+    const longitude = raw.match(/!4d(-?\d+(?:\.\d+)?)/i);
+    if (!latitude || !longitude) return null;
+    const lat = Number(latitude[1]);
+    const lng = Number(longitude[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return { latitude: lat, longitude: lng, coordinatesSource: 'google_maps_place_url' };
+  }
+
   function extractPlaceIdFromUrl(rawUrl = '') {
     try {
       const url = new URL(rawUrl, location.href);
@@ -327,11 +338,15 @@
     const closedStatus = /permanently closed|permanentemente fechado/i.test(pageText) ? 'permanently_closed' :
       /temporarily closed|temporariamente fechado/i.test(pageText) ? 'temporarily_closed' : 'unknown';
     const rating = card.rating || (pageText.match(/\b([0-5][,.]\d)\b/) || [])[1] || '';
+    const coordinates = extractPlaceCoordinatesFromMapsUrl(location.href) || extractPlaceCoordinatesFromMapsUrl(card.mapsUrl);
     return {
       ...card,
       ...context,
       name: name || card.name,
       placeId: card.placeId || extractPlaceIdFromUrl(location.href),
+       latitude: coordinates?.latitude ?? card.latitude ?? null,
+       longitude: coordinates?.longitude ?? card.longitude ?? null,
+       coordinatesSource: coordinates?.coordinatesSource || card.coordinatesSource || '',
       website,
       whatsappUrl: extractWhatsApp(root) || card.whatsappUrl || '',
       address: textOf(addressEl) || card.address || '',

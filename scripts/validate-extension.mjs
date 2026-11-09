@@ -30,7 +30,7 @@ if ((worker.match(/chrome\.runtime\.onMessage\.addListener/g) || []).length !== 
 
 const requiredFiles = [
   'content.js','service-worker.js','sidepanel.js','sidepanel.html','sidepanel.css',
-  'db.js','crm-utils.js','capture-utils.js','checkpoint-utils.js','contact-utils.js','cloud-utils.js','permission-utils.js','queue-utils.js','sync-utils.js','workbook.js','spreadsheet-import.js',
+  'db.js','crm-utils.js','capture-utils.js','checkpoint-utils.js','contact-utils.js','cloud-utils.js','permission-utils.js','queue-utils.js','sync-utils.js','geo-utils.js','workbook.js','spreadsheet-import.js',
   'PRIVACY.md','LICENSE.md','CHANGELOG.md','README.md'
 ];
 for (const file of requiredFiles) if (!(await exists(file))) errors.push('Arquivo obrigatório ausente: ' + file);
@@ -61,7 +61,7 @@ const runtimeGeneratedIds = new Set(['footerVersion','showMoreButton']);
 const missing = [...new Set(selectors)].filter((id) => !htmlIds.has(id) && !runtimeGeneratedIds.has(id));
 for (const id of missing) errors.push('O sidepanel.js referencia #'+id+' mas o elemento não existe no sidepanel.html.');
 
-for (const file of ['content.js','service-worker.js','sidepanel.js','db.js','crm-utils.js','capture-utils.js','checkpoint-utils.js','cloud-utils.js','permission-utils.js','queue-utils.js','sync-utils.js']) {
+for (const file of ['content.js','service-worker.js','sidepanel.js','db.js','crm-utils.js','capture-utils.js','checkpoint-utils.js','cloud-utils.js','permission-utils.js','queue-utils.js','sync-utils.js','geo-utils.js']) {
   const source = await readFile(file, 'utf8');
   if (/service_role/i.test(source)) errors.push('Possível segredo service_role encontrado no código executável: '+file);
 }

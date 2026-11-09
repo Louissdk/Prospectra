@@ -214,9 +214,15 @@ export function normalizeLeadRecord(lead = {}, owner = '') {
   const phones = [...new Set([...(Array.isArray(lead.phones) ? lead.phones : []), phone].map((item) => normalizeBrazilPhone(item) || String(item || '').trim()).filter(Boolean))];
   const emails = [...new Set((Array.isArray(lead.emails) ? lead.emails : []).map((email) => String(email).trim().toLowerCase()).filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
   const stageIds = new Set(CRM_STAGES.map((stage) => stage.id));
+  const latitude = Number(lead.latitude);
+  const longitude = Number(lead.longitude);
+  const hasCoordinates = lead.latitude !== null && lead.latitude !== undefined &&
+    lead.longitude !== null && lead.longitude !== undefined &&
+    Number.isFinite(latitude) && Number.isFinite(longitude) &&
+    latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
   return {
     ...lead, id: String(lead.id || (globalThis.crypto?.randomUUID?.() || 'lead-' + Date.now() + '-' + Math.random().toString(16).slice(2))),
-    placeId, identityKey: identityKeyForLead({ ...lead, placeId, mapsUrl }), name: cleanText(lead.name) || 'Empresa sem nome identificado',
+    placeId, identityKey: identityKeyForLead({ ...lead, placeId, mapsUrl }), latitude: hasCoordinates ? latitude : null, longitude: hasCoordinates ? longitude : null, coordinatesSource: hasCoordinates ? String(lead.coordinatesSource || 'google_maps_place_url') : '', name: cleanText(lead.name) || 'Empresa sem nome identificado',
     category: cleanText(lead.category), categoryPath: lead.categoryPath || cleanText(lead.category).split(/\s*[>›|/]\s*/).filter(Boolean),
     phone: phones[0] || '', phones, phoneTypes: phones.map(classifyPhone),
     emails, emailTypes: Object.fromEntries(emails.map((email) => [email, classifyEmail(email)])),
