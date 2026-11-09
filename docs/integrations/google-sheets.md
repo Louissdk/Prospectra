@@ -40,6 +40,9 @@ function doPost(e) {
 
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = spreadsheet.getSheetByName(SHEET_NAME) || spreadsheet.insertSheet(SHEET_NAME);
+    if (sheet.getMaxColumns() < headers.length) {
+      sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+    }
     const lastRow = sheet.getLastRow();
     const existing = lastRow > 1
       ? sheet.getRange(2, 1, lastRow - 1, headers.length).getValues()
@@ -96,7 +99,7 @@ function safeCell(value) {
   if (value === null || value === undefined) return '';
   if (typeof value !== 'string') return value;
   // Impede que dados externos sejam interpretados como fórmulas pelo Sheets.
-  return /^[\\s]*[=+\\-@]/.test(value) ? "'" + value : value;
+  return /^[\s]*[=+\-@]/.test(value) ? "'" + value : value;
 }
 
 function output(value) {

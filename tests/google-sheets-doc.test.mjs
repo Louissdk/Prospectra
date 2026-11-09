@@ -11,3 +11,9 @@ test('Google Sheets template exports exact coordinates and protects against form
   assert.match(docs,/row\.map\(safeCell\)/);
   assert.match(docs,/\^\[\\s\]\*\[=\+\\-@\]/);
 });
+
+test('Apps Script expands narrow sheets and neutralizes formula-like strings', () => {
+  assert.ok(docs.includes('sheet.getMaxColumns() < headers.length'));
+  assert.ok(docs.includes('sheet.insertColumnsAfter(sheet.getMaxColumns()'));
+  assert.ok(docs.includes(String.raw`return /^[\s]*[=+\-@]/.test(value)`));
+});
