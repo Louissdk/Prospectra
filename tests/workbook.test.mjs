@@ -17,3 +17,44 @@ test('creates a real XLSX ZIP package with all lead columns and Excel formatting
   assert.ok(bytes.length > 1500);
   await writeFile('/tmp/prospectra-workbook-test.xlsx', bytes);
 });
+
+test('includes exact geographic coordinates and their origin in XLSX output', async () => {
+  const blob=createXlsx([{
+    name:'Empresa geolocalizada',
+    latitude:-23.55052,
+    longitude:-46.633308,
+    coordinatesSource:'google_maps_place_url'
+  }]);
+  const bytes=new Uint8Array(await blob.arrayBuffer());
+  const zippedText=new TextDecoder().decode(bytes);
+  assert.equal(bytes[0],0x50);
+  assert.ok(zippedText.includes('Latitude'));
+  assert.ok(zippedText.includes('Longitude'));
+  assert.ok(zippedText.includes('-23.55052'));
+  assert.ok(zippedText.includes('-46.633308'));
+  assert.ok(zippedText.includes('google_maps_place_url'));
+});
+
+test('keeps zero coordinates and stores latitude and longitude as numeric XLSX cells', async () => {
+  const blob=createXlsx([{name:'Meridiano zero',latitude:0,longitude:0,coordinatesSource:'google_maps_place_url'}]);
+  const zippedText=new TextDecoder().decode(new Uint8Array(await blob.arrayBuffer()));
+  assert.ok(zippedText.includes('<v>0</v>'));
+  assert.ok(zippedText.includes('Latitude'));
+  assert.ok(zippedText.includes('Longitude'));
+  assert.ok(zippedText.includes('Origem das coordenadas'));
+});
+
+test('does not duplicate geographic columns in XLSX output', async () => {
+  const blob = createXlsx([{
+    name: 'Empresa geolocalizada',
+    latitude: -23.55052,
+    longitude: -46.633308,
+    coordinatesSource: 'google_maps_place_url'
+  }]);
+  const archiveText = new TextDecoder().decode(new Uint8Array(await blob.arrayBuffer()));
+
+  for (const title of ['Latitude', 'Longitude', 'Origem das coordenadas']) {
+    const matches = archiveText.match(new RegExp(title, 'g')) || [];
+    assert.equal(matches.length, 1, `A coluna "${title}" deve aparecer exatamente uma vez.`);
+  }
+});

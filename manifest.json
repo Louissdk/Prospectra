@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Prospectra — Prospecção Inteligente",
   "short_name": "Prospectra",
-  "version": "1.2.5",
-  "description": "Coleta progressiva de leads do Google Maps, com diagnóstico de resultados, salvamento por lotes e status de coleta parcial.",
+  "version": "2.0.0",
+  "description": "Plataforma local-first de prospecção: coleta progressiva no Google Maps, enriquecimento de contatos, CRM, relatórios e sincronização opcional.",
   "minimum_chrome_version": "116",
   "permissions": [
     "activeTab",
@@ -14,14 +14,20 @@
   ],
   "optional_host_permissions": [
     "http://*/*",
-    "https://*/*"
+    "https://*/*",
+    "https://*.google.com/*",
+    "https://*.google.com.br/*"
   ],
   "background": {
     "service_worker": "service-worker.js",
     "type": "module"
   },
   "action": {
-    "default_title": "Abrir Prospectra"
+    "default_title": "Abrir Prospectra e Google Maps",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
   },
   "side_panel": {
     "default_path": "sidepanel.html"
@@ -43,5 +49,9 @@
       ],
       "run_at": "document_idle"
     }
+  ],
+  "optional_permissions": [
+    "alarms",
+    "notifications"
   ]
 }

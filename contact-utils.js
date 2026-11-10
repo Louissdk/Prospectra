@@ -78,6 +78,19 @@ export function isPublicHttpUrl(input) {
   }
 }
 
+export function isSafeSameSiteRedirect(fromValue, toValue) {
+  if (!isPublicHttpUrl(fromValue) || !isPublicHttpUrl(toValue)) return false;
+  try {
+    const from = new URL(fromValue);
+    const to = new URL(toValue);
+    const normalizeHost = (host) => host.toLowerCase().replace(/^www\./, '');
+    if (normalizeHost(from.hostname) !== normalizeHost(to.hostname)) return false;
+    if (from.port !== to.port) return false;
+    if (from.protocol === 'https:' && to.protocol !== 'https:') return false;
+    return true;
+  } catch { return false; }
+}
+
 export function extractContactLinks(html = '', baseUrl, limit = 2) {
   if (!isPublicHttpUrl(baseUrl)) return [];
   const base = new URL(baseUrl);

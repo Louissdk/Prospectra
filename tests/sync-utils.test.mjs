@@ -1,0 +1,111 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  MAX_DELETION_TOMBSTONES, normalizeDeletionTombstone, createDeletionTombstone,
+  mergeDeletionTombstones, applyDeletionTombstones,
+  pruneSupersededTombstones, buildSupabaseSyncRows
+} from '../sync-utils.js';
+
+test('normalizes and merges deletion tombstones by identity and newest deletion time', () => {
+  const merged = mergeDeletionTombstones(
+    [{id:'old',identityKey:'place:ChIJ-1',aliases:['place:ChIJ-1','phone:111'],deletedAt:'2026-11-01T10:00:00Z'}],
+    [{id:'new',identity_key:'place:ChIJ-1',aliases:['place:ChIJ-1','phone:222'],deleted_at:'2026-11-02T10:00:00Z'}]
+  );
+  assert.equal(merged.length,1);
+  assert.equal(merged[0].id,'new');
+  assert.equal(merged[0].deletedAt,'2026-11-02T10:00:00.000Z');
+  assert.deepEqual(new Set(merged[0].aliases),new Set(['place:ChIJ-1','phone:111','phone:222']));
+});
+
+test('tombstones remove stale remote leads but allow a genuinely newer re-created lead', () => {
+  const tombstone=normalizeDeletionTombstone({
+    id:'deleted-1',identityKey:'place:ChIJ-1',aliases:['place:ChIJ-1','phone:111'],
+    deletedAt:'2026-11-05T10:00:00Z'
+  });
+  const stale={id:'lead-old',identityKey:'place:ChIJ-1',placeId:'ChIJ-1',phone:'111',updatedAt:'2026-11-04T10:00:00Z'};
+  const recreated={...stale,id:'lead-new',updatedAt:'2026-11-06T10:00:00Z'};
+  assert.deepEqual(applyDeletionTombstones([stale,recreated],[tombstone]),[recreated]);
+  assert.deepEqual(pruneSupersededTombstones([recreated],[tombstone]),[]);
+});
+
+test('builds PostgREST rows for active leads and soft deletions', () => {
+  const rows=buildSupabaseSyncRows(
+    [{id:'lead-1',identityKey:'place:ChIJ-1',name:'Empresa',updatedAt:'2026-11-09T11:00:00Z'}],
+    [{id:'lead-2',identityKey:'place:2',aliases:['place:2'],deletedAt:'2026-11-09T12:00:00Z'}],
+    'user-123'
+  );
+  assert.equal(rows.length,2);
+  assert.equal(rows[0].deleted_at,null);
+  assert.equal(rows[1].deleted_at,'2026-11-09T12:00:00.000Z');
+  assert.equal(rows[1].payload.deleted,true);
+  assert.equal(rows[1].user_id,'user-123');
+});
+
+test('rejects invalid tombstones and caps the tombstone history', () => {
+  assert.equal(normalizeDeletionTombstone({identityKey:'x',deletedAt:'invalid'}),null);
+  assert.equal(mergeDeletionTombstones([{identityKey:'x',deletedAt:'2026-11-09T10:00:00Z'}]).length,1);
+  assert.equal(MAX_DELETION_TOMBSTONES,10000);
+});
+
+test('creates deletion tombstones with the lead identity and aliases', () => {
+  const tombstone = createDeletionTombstone({
+    id:'lead-9',identityKey:'place:ChIJ-9',placeId:'ChIJ-9',name:'Empresa 9',phone:'+5511999999999'
+  },'2026-11-09T12:00:00Z');
+  assert.equal(tombstone.id,'lead-9');
+  assert.equal(tombstone.identityKey,'place:ChIJ-9');
+  assert.ok(tombstone.aliases.includes('place:ChIJ-9'));
+  assert.equal(tombstone.deletedAt,'2026-11-09T12:00:00.000Z');
+});
+
+test('a deletion tombstone never removes a different branch sharing name and phone', () => {
+  const deletedBranch={
+    id:'branch-1',identityKey:'place:ChIJ-UNIDADE-1',placeId:'ChIJ-UNIDADE-1',
+    name:'Rede Exemplo',phone:'+551133334444',address:'Rua A, 10',
+    updatedAt:'2026-11-09T10:00:00Z'
+  };
+  const otherBranch={
+    id:'branch-2',identityKey:'place:ChIJ-UNIDADE-2',placeId:'ChIJ-UNIDADE-2',
+    name:'Rede Exemplo',phone:'+551133334444',address:'Rua B, 20',
+    updatedAt:'2026-11-09T10:00:00Z'
+  };
+  const tombstone=createDeletionTombstone(deletedBranch,'2026-11-09T11:00:00Z');
+  assert.deepEqual(applyDeletionTombstones([deletedBranch,otherBranch],[tombstone]),[otherBranch]);
+});
+
+
+test('tombstone identities do not collide when long keys share the same prefix', () => {
+  const prefix='url:'+'x'.repeat(180);
+  const rows=buildSupabaseSyncRows([],[
+    {identityKey:prefix+'A',deletedAt:'2026-11-09T10:00:00Z'},
+    {identityKey:prefix+'B',deletedAt:'2026-11-09T11:00:00Z'}
+  ],'user-123');
+  assert.equal(rows.length,2);
+  assert.notEqual(rows[0].id,rows[1].id);
+  assert.equal(rows[0].id,'deleted:'+rows[0].identity_key);
+  assert.equal(rows[1].id,'deleted:'+rows[1].identity_key);
+});
+
+test('applies and prunes the maximum tombstone history without pairwise scans', () => {
+  const size=MAX_DELETION_TOMBSTONES;
+  const leads=Array.from({length:size},(_,index)=>({
+    id:'lead-'+index,
+    identityKey:'place:active-'+index,
+    placeId:'active-'+index,
+    name:'Ativo '+index,
+    updatedAt:'2026-11-09T12:00:00.000Z'
+  }));
+  const tombstones=Array.from({length:size},(_,index)=>({
+    id:'deleted-'+index,
+    identityKey:'place:deleted-'+index,
+    aliases:['place:deleted-'+index],
+    deletedAt:'2026-11-09T10:00:00.000Z'
+  }));
+  const started=performance.now();
+  const filtered=applyDeletionTombstones(leads,tombstones);
+  const pruned=pruneSupersededTombstones(leads,tombstones);
+  const elapsed=performance.now()-started;
+
+  assert.equal(filtered.length,size);
+  assert.equal(pruned.length,size);
+  assert.ok(elapsed<5000,'10.000 leads + 10.000 tombstones devem ser indexados, não comparados em pares; levou '+Math.round(elapsed)+' ms.');
+});

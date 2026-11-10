@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Guia rápido
+    url: https://github.com/Louissdk/Prospectra/blob/main/docs/GUIA-RAPIDO.md
+    about: Consulte instalação e uso antes de abrir uma solicitação.
+  - name: Segurança
+    url: https://github.com/Louissdk/Prospectra/blob/main/SECURITY.md
+    about: Não publique vulnerabilidades, credenciais ou dados comerciais em issues públicas.

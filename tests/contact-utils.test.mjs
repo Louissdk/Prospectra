@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decodeEmailText, extractContactLinks, extractEmails, isPublicHttpUrl, safeCsvCell, toCsv, normalizePhone, buildWhatsAppUrl } from '../contact-utils.js';
+import { decodeEmailText, extractContactLinks, extractEmails, isPublicHttpUrl, isSafeSameSiteRedirect, safeCsvCell, toCsv, normalizePhone, buildWhatsAppUrl } from '../contact-utils.js';
 
 test('extracts and deduplicates plain and mailto emails', () => {
   const html = '<a href="mailto:Vendas@Empresa.com.br">fale conosco</a><p>contato@empresa.com.br</p><p>suporte@empresa.com.br</p>';
@@ -72,4 +72,12 @@ test('CSV exports independent lead, category, phone, WhatsApp and website column
   assert.ok(csv.includes('https://wa.me/5511987654321'));
   assert.ok(csv.includes('https://clinica.example.com'));
   assert.ok(csv.includes('Guarulhos, SP'));
+});
+
+test('allows only safe same-site redirects and blocks external hosts or HTTPS downgrade', () => {
+  assert.equal(isSafeSameSiteRedirect('http://empresa.com.br/inicio','https://empresa.com.br/inicio'),true);
+  assert.equal(isSafeSameSiteRedirect('https://www.empresa.com.br/','https://empresa.com.br/contato'),true);
+  assert.equal(isSafeSameSiteRedirect('https://empresa.com.br/','https://outro.com.br/'),false);
+  assert.equal(isSafeSameSiteRedirect('https://empresa.com.br/','http://empresa.com.br/'),false);
+  assert.equal(isSafeSameSiteRedirect('https://empresa.com.br/','http://127.0.0.1/'),false);
 });
