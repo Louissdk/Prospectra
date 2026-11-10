@@ -134,6 +134,11 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(node -p "JSON.parse(require('fs').readFileSync('manifest.json','utf8')).version")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [[ "$PACKAGE_VERSION" != "$VERSION" ]]; then
+            echo "package.json ($PACKAGE_VERSION) e manifest.json ($VERSION) precisam ter a mesma versão."
+            exit 1
+          fi
           if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" != "v$VERSION" ]]; then
             echo "A tag $GITHUB_REF_NAME não corresponde à versão $VERSION do Manifest."
             exit 1
@@ -204,7 +209,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$EXTENSION_DIR"
-          unzip -q dist/Prospectra-2.0.0.zip -d "$EXTENSION_DIR"
+          PACKAGE="$(find dist -maxdepth 1 -type f -name 'Prospectra-*.zip' -print -quit)"
+          if [[ -z "$PACKAGE" ]]; then
+            echo "Nenhum pacote Prospectra-*.zip foi encontrado no artefato."
+            exit 1
+          fi
+          unzip -q "$PACKAGE" -d "$EXTENSION_DIR"
           test -f "$EXTENSION_DIR/manifest.json"
           xvfb-run -a node --test tests/chromium/extension-package-smoke.test.mjs
 
