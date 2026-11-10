@@ -43,3 +43,18 @@ test('keeps zero coordinates and stores latitude and longitude as numeric XLSX c
   assert.ok(zippedText.includes('Longitude'));
   assert.ok(zippedText.includes('Origem das coordenadas'));
 });
+
+test('does not duplicate geographic columns in XLSX output', async () => {
+  const blob = createXlsx([{
+    name: 'Empresa geolocalizada',
+    latitude: -23.55052,
+    longitude: -46.633308,
+    coordinatesSource: 'google_maps_place_url'
+  }]);
+  const archiveText = new TextDecoder().decode(new Uint8Array(await blob.arrayBuffer()));
+
+  for (const title of ['Latitude', 'Longitude', 'Origem das coordenadas']) {
+    const matches = archiveText.match(new RegExp(title, 'g')) || [];
+    assert.equal(matches.length, 1, `A coluna "${title}" deve aparecer exatamente uma vez.`);
+  }
+});
