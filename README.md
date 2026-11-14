@@ -1,5 +1,10 @@
 # Prospectra
 
+## Novidades da versão 1.2.8
+
+- A seleção do painel de resultados agora prioriza um contêiner rolável que realmente contém fichas, evitando rolar um elemento interno que não controla a lista.
+- Incluído teste de regressão para a prioridade do contêiner de rolagem.
+
 ## Novidades da versão 1.2.7
 
 - A confirmação de abertura de ficha exige título preenchido e compatível com a empresa selecionada, além de uma rota de detalhes do Maps.

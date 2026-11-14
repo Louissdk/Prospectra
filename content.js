@@ -153,7 +153,10 @@
       (b.priority - a.priority) || (Number(b.scrollable) - Number(a.scrollable)) ||
       (b.links - a.links) || (b.scrollRoom - a.scrollRoom)
     );
-    return ranked.find((item) => item.links > 0)?.element ||
+    // Prefer the actual scroll container. A high-priority feed node can
+    // contain cards while its parent is the element that really scrolls.
+    return ranked.find((item) => item.links > 0 && item.scrollable)?.element ||
+      ranked.find((item) => item.links > 0)?.element ||
       ranked.find((item) => item.scrollable)?.element ||
       ranked[0]?.element || null;
   }

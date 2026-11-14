@@ -25,3 +25,8 @@ test('capture loop uses normalized keys to avoid rescanning tracking variants', 
   assert.match(source, /const key = resultKey\(basic\)/);
   assert.match(source, /const nextKey = resultKey\(item\)/);
 });
+
+test('feed selection prefers a scrollable container that contains result cards', () => {
+  assert.match(source, /ranked\\.find\\(\\(item\\) => item\\.links > 0 && item\\.scrollable\\)\\?\\.element/);
+  assert.match(source, /Prefer the actual scroll container/);
+});
