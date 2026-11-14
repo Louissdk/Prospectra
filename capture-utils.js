@@ -1,11 +1,40 @@
+const MAPS_TRACKING_PARAMS = /^(?:entry|g_ep|hl|authuser|utm_[^=]*|ved|gsas|source|sa|opi|client)$/i;
+
+export function normalizeMapsUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    url.hash = '';
+    if (/(^|\.)google\.[a-z.]+$/i.test(url.hostname) && /\/maps(?:\/|$)/i.test(url.pathname)) {
+      for (const key of [...url.searchParams.keys()]) {
+        if (MAPS_TRACKING_PARAMS.test(key)) url.searchParams.delete(key);
+      }
+      url.searchParams.sort();
+      url.pathname = url.pathname.replace(/\/+$/, '') || '/';
+    }
+    return url.href;
+  } catch {
+    return raw;
+  }
+}
+
+function normalizeLeadName(value) {
+  return String(value || '').normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 export function captureLeadKey(lead = {}) {
   const mapsUrl = String(lead.mapsUrl || '').trim();
-  if (mapsUrl) {
-    try { const url = new URL(mapsUrl); url.hash = ''; return url.href; }
-    catch { return mapsUrl; }
-  }
-  return String(lead.name || '').trim().toLowerCase() + '|' + String(lead.phone || '').trim();
+  if (mapsUrl) return normalizeMapsUrl(mapsUrl);
+  const name = normalizeLeadName(lead.name);
+  const phone = String(lead.phone || '').replace(/\D/g, '');
+  return name + '|' + phone;
 }
+
 function mergeLeadRecord(previous, incoming) {
   const emails = [...new Set([
     ...(Array.isArray(previous.emails) ? previous.emails : []),

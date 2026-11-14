@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { captureLeadKey, mergeLeadRecords } from '../capture-utils.js';
+import { captureLeadKey, mergeLeadRecords, normalizeMapsUrl } from '../capture-utils.js';
 
 test('deduplicates by Maps URL and preserves richer fields', () => {
   const existing = [{
@@ -24,8 +24,21 @@ test('deduplicates by Maps URL and preserves richer fields', () => {
   assert.deepEqual(merged[0].emails, ['contato@oficina.example']);
   assert.equal(merged[0].collectedAt, '2026-11-01T10:00:00.000Z');
 });
-test('uses a stable name and phone fallback key', () => {
-  assert.equal(captureLeadKey({ name: 'Empresa X', phone: '(11) 99999-0000' }), 'empresa x|(11) 99999-0000');
+test('normalizes accents and phone formatting in fallback lead keys', () => {
+  assert.equal(captureLeadKey({ name: 'Clínica São João', phone: '(11) 99999-0000' }), 'clinica sao joao|11999990000');
+});
+
+test('deduplicates Maps links with different tracking parameters and hashes', () => {
+  const first = 'https://www.google.com/maps/place/Clinica+Exemplo/?entry=ttu&hl=pt-BR#reviews';
+  const second = 'https://www.google.com/maps/place/Clinica+Exemplo?authuser=0&hl=en&entry=ttu';
+  assert.equal(captureLeadKey({ mapsUrl: first }), captureLeadKey({ mapsUrl: second }));
+});
+
+test('keeps the Maps CID while removing presentation tracking parameters', () => {
+  assert.equal(
+    normalizeMapsUrl('https://www.google.com/maps?cid=123456&hl=pt-BR&authuser=0'),
+    'https://www.google.com/maps?cid=123456'
+  );
 });
 test('enforces storage cap and keeps most recent records', () => {
   const merged = mergeLeadRecords([], [

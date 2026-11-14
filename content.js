@@ -58,6 +58,35 @@
   const absolute = (value) => {
     try { return new URL(value, location.href).href; } catch { return ''; };
   };
+
+  function resultKey(item = {}) {
+    const rawUrl = clean(item.mapsUrl || '');
+    if (rawUrl) {
+      try {
+        const url = new URL(rawUrl, location.href);
+        url.hash = '';
+        if (/(^|\.)google\.[a-z.]+$/i.test(url.hostname) && /\/maps(?:\/|$)/i.test(url.pathname)) {
+          for (const key of [...url.searchParams.keys()]) {
+            if (/^(?:entry|g_ep|hl|authuser|utm_[^=]*|ved|gsas|source|sa|opi|client)$/i.test(key)) {
+              url.searchParams.delete(key);
+            }
+          }
+          url.searchParams.sort();
+          url.pathname = url.pathname.replace(/\/+$/, '') || '/';
+        }
+        return url.href;
+      } catch {
+        return rawUrl;
+      }
+    }
+    const name = clean(item.name || '').normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+    const phone = String(item.phone || '').replace(/\D/g, '');
+    return name + '|' + phone;
+  }
   const validMapsTab = () => /(^|\.)google\.[^/]+$/.test(location.hostname) && /\/maps/.test(location.pathname);
 
   function isRendered(element) {
@@ -220,8 +249,9 @@
     const seen = new Set();
     for (const anchor of anchors) {
       const url = absolute(anchor.href);
-      if (!url || seen.has(url)) continue;
-      seen.add(url);
+      const key = resultKey({ mapsUrl: url });
+      if (!url || seen.has(key)) continue;
+      seen.add(key);
       const item = extractCard(anchor);
       if (item.name !== 'Empresa sem nome identificado' || item.phone || item.address) results.push(item);
     }
@@ -308,21 +338,37 @@
       'Confirme que a pesquisa está aberta e que os resultados apareceram; depois tente novamente.'
     );
   }
+  function normalizePlaceTitle(value) {
+    return clean(value).normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  }
+
   async function waitForDetail(expectedName, expectedUrl = '', timeout = 6500) {
     const started = Date.now();
-    const expected = clean(expectedName).toLowerCase();
+    const expected = normalizePlaceTitle(expectedName);
+    let targetCid = '';
+    try { targetCid = new URL(expectedUrl, location.href).searchParams.get('cid') || ''; } catch {}
     let matchingHeadingSamples = 0;
-    let targetPath = '';
-    try { targetPath = new URL(expectedUrl, location.href).pathname.replace(/\/$/, ''); } catch {}
+
     while (Date.now() - started < timeout) {
       throwIfCaptureCancelled();
-      const headingText = clean(detailRoot().querySelector('h1')?.textContent || '').toLowerCase();
+      const headingText = normalizePlaceTitle(detailRoot().querySelector('h1')?.textContent || '');
+      const partialMatchIsUseful = Math.min(headingText.length, expected.length) >= 5;
       const headingMatches = headingText.length > 1 && expected.length > 1 &&
-        (headingText === expected || headingText.includes(expected) || expected.includes(headingText));
+        (headingText === expected || (partialMatchIsUseful &&
+          (headingText.includes(expected) || expected.includes(headingText))));
       matchingHeadingSamples = headingMatches ? matchingHeadingSamples + 1 : 0;
-      let currentPath = '';
-      try { currentPath = new URL(location.href).pathname.replace(/\/$/, ''); } catch {}
-      if (matchingHeadingSamples >= 2 || (!!targetPath && isPlaceRoute() && currentPath === targetPath)) {
+
+      let currentCid = '';
+      try { currentCid = new URL(location.href).searchParams.get('cid') || ''; } catch {}
+      const routeReady = isPlaceRoute() || Boolean(targetCid && currentCid === targetCid);
+
+      // A URL transition alone is not enough: Maps can change routes before
+      // the new business heading is rendered, leaving the previous H1 visible.
+      if (matchingHeadingSamples >= 2 && routeReady) {
         await sleep(350);
         return true;
       }
@@ -330,11 +376,14 @@
     }
     return false;
   }
+
   async function returnToResults(previousUrl, timeout = 7000) {
     const backButton = [...document.querySelectorAll('button')].filter(isRendered).find((button) => {
-      const label = (button.getAttribute('aria-label') || '') + ' ' +
-        (button.getAttribute('title') || '') + ' ' + (button.innerText || '');
-      return /back to results|voltar para resultados|retornar aos resultados|resultados|\bback\b|\bvoltar\b|\bclose\b|\bfechar\b/i.test(label);
+      const label = clean(
+        (button.getAttribute('aria-label') || '') + ' ' +
+        (button.getAttribute('title') || '') + ' ' + (button.innerText || '')
+      );
+      return /back to results|back to list|voltar para resultados|voltar aos resultados|retornar aos resultados/i.test(label);
     });
     if (backButton) backButton.click();
     else if (isPlaceRoute() || location.href !== previousUrl) {
@@ -385,17 +434,17 @@
       if (!feed) { stopReason = 'A lista de resultados deixou de estar disponível.'; break; }
       const cards = collectCards();
       const basic = cards.find((item) => {
-        const key = item.mapsUrl || item.name + '|' + item.address;
+        const key = resultKey(item);
         return key && !processed.has(key);
       });
 
       if (basic) {
-        const key = basic.mapsUrl || basic.name + '|' + basic.address;
+        const key = resultKey(basic);
         processed.add(key);
         const rating = Number(String(basic.rating || '').replace(',', '.'));
         if (threshold > 0 && (!basic.rating || !Number.isFinite(rating) || rating < threshold)) {
           filteredOut += 1;
-          reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Descartado pela nota: ' + basic.name });
+          reportProgress({ done: collected.length, total: progressTotal, name: 'Descartado pela nota: ' + basic.name });
           continue;
         }
 
@@ -406,20 +455,20 @@
         if (anchor) {
           const previousUrl = location.href;
           try {
-            reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Abrindo ficha: ' + basic.name });
+            reportProgress({ done: collected.length, total: progressTotal, name: 'Abrindo ficha: ' + basic.name });
             anchor.scrollIntoView({ block: 'center', behavior: 'auto' });
             await sleep(120);
             throwIfCaptureCancelled();
             anchor.click();
-            reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Aguardando ficha: ' + basic.name });
+            reportProgress({ done: collected.length, total: progressTotal, name: 'Aguardando ficha: ' + basic.name });
             const opened = await waitForDetail(basic.name, basic.mapsUrl);
             if (opened) {
-              reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Lendo contatos: ' + basic.name });
+              reportProgress({ done: collected.length, total: progressTotal, name: 'Lendo contatos: ' + basic.name });
               details = extractDetail(basic, context);
             } else {
               details.captureNote = 'A ficha não confirmou a abertura; os dados do cartão foram preservados.';
             }
-            reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Retornando aos resultados após: ' + basic.name });
+            reportProgress({ done: collected.length, total: progressTotal, name: 'Retornando aos resultados após: ' + basic.name });
             const returned = await returnToResults(previousUrl);
             if (!returned) {
               details.captureNote = [details.captureNote, 'O Google Maps não confirmou o retorno à lista. A coleta foi interrompida para evitar abrir fichas sobrepostas.'].filter(Boolean).join(' ');
@@ -447,9 +496,9 @@
         }
 
         collected.push(details);
-        reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Lead capturado: ' + basic.name });
+        reportProgress({ done: collected.length, total: progressTotal, name: 'Lead capturado: ' + basic.name });
         if (collected.length - sentCount >= 2) {
-          reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Salvando lote de leads' });
+          reportProgress({ done: collected.length, total: progressTotal, name: 'Salvando lote de leads' });
           await sendCaptureBatch(collected.slice(sentCount));
           sentCount = collected.length;
         }
@@ -464,7 +513,7 @@
         behavior: 'instant'
       });
       scrollRounds += 1;
-      reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Carregando mais resultados do Google Maps' });
+      reportProgress({ done: collected.length, total: progressTotal, name: 'Carregando mais resultados do Google Maps' });
 
       const scrollStarted = Date.now();
       let foundMore = false;
@@ -475,7 +524,7 @@
         if (!currentFeed) break;
         const currentCards = collectCards();
         const hasUnseen = currentCards.some((item) => {
-          const nextKey = item.mapsUrl || item.name + '|' + item.address;
+          const nextKey = resultKey(item);
           return nextKey && !processed.has(nextKey);
         });
         if (hasUnseen || currentFeed.scrollHeight > beforeHeight) { foundMore = true; break; }
@@ -500,12 +549,12 @@
     }
 
     if (sentCount < collected.length) {
-      reportProgress({ done: collected.length + filteredOut, total: progressTotal, name: 'Salvando últimos leads' });
+      reportProgress({ done: collected.length, total: progressTotal, name: 'Salvando últimos leads' });
       await sendCaptureBatch(collected.slice(sentCount));
       sentCount = collected.length;
     }
     reportProgress({
-      done: collected.length + filteredOut,
+      done: collected.length,
       total: progressTotal,
       name: stopReason || 'Coleta concluída'
     });

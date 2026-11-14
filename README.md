@@ -1,5 +1,13 @@
 # Prospectra
 
+## Novidades da versão 1.2.7
+
+- A confirmação de abertura de ficha exige título preenchido e compatível com a empresa selecionada, além de uma rota de detalhes do Maps.
+- O retorno à lista prioriza controles explícitos de voltar aos resultados; botões genéricos de fechar ou voltar não são clicados por engano.
+- Links de fichas são normalizados para ignorar parâmetros de rastreamento, preservando identificadores como `cid`; nomes e telefones também são normalizados na deduplicação.
+- O progresso passa a contar leads realmente capturados, sem somar empresas descartadas pelo filtro de nota.
+- Incluídos testes para deduplicação, confirmação de ficha, navegação e contagem de progresso.
+
 ## Novidades da versão 1.2.6
 
 - Removido o listener duplicado do service worker, que podia confirmar lotes antes da gravação terminar e executar o enriquecimento de sites em duplicidade.
