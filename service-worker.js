@@ -144,20 +144,3 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   return false;
 });
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === 'PROSPECTRA_PROGRESS' ||
-      message?.type === 'PROSPECTRA_HEARTBEAT' ||
-      message?.type === 'PROSPECTRA_CAPTURE_BATCH' ||
-      message?.type === 'PROSPECTRA_CAPTURE_COMPLETE') {
-    sendResponse({ ok: true });
-    return false;
-  }
-
-  if (message?.type === 'PROSPECTRA_ENRICH') {
-    enrichWebsite(message.website)
-      .then((result) => sendResponse({ ok: true, result }))
-      .catch((error) => sendResponse({ ok: false, error: error?.message || 'Erro ao consultar o site.' }));
-    return true;
-  }
-  return false;
-});

@@ -1,5 +1,12 @@
 # Prospectra
 
+## Novidades da versão 1.2.6
+
+- Removido o listener duplicado do service worker, que podia confirmar lotes antes da gravação terminar e executar o enriquecimento de sites em duplicidade.
+- A confirmação de cada lote agora depende exclusivamente da conclusão de `chrome.storage.local.set`.
+- A detecção de abertura de ficha ignora títulos vazios, evitando considerar uma ficha carregada antes de existir um nome identificável.
+- Adicionado teste de regressão que simula uma gravação atrasada e verifica o momento da confirmação do lote.
+
 ## Novidades da versão 1.2.5
 
 - Navegação sequencial refeita: cada ficha é confirmada pelo nome/rota, lida e fechada com retorno explícito aos resultados antes da próxima empresa.

@@ -317,7 +317,7 @@
     while (Date.now() - started < timeout) {
       throwIfCaptureCancelled();
       const headingText = clean(detailRoot().querySelector('h1')?.textContent || '').toLowerCase();
-      const headingMatches = expected.length > 1 &&
+      const headingMatches = headingText.length > 1 && expected.length > 1 &&
         (headingText === expected || headingText.includes(expected) || expected.includes(headingText));
       matchingHeadingSamples = headingMatches ? matchingHeadingSamples + 1 : 0;
       let currentPath = '';
